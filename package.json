@@ -11,7 +11,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@config-plugins/react-native-ble-plx": "^9.0.0",
     "buffer": "^6.0.3",
     "expo": "~52.0.0",
     "expo-av": "~15.0.1",
