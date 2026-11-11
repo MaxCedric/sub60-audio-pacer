@@ -15,8 +15,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
+          node-version: 22
 
       - name: Install dependencies
         run: npm install --legacy-peer-deps
@@ -47,7 +46,7 @@ jobs:
         working-directory: ios
         run: |
           mkdir -p Payload
-          APP_PATH=$(find build/Build/Products/Release-iphoneos -name "*.app" | head -n 1)
+          APP_PATH=$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name "*.app" | head -n 1)
           cp -r "$APP_PATH" Payload/
           zip -r -9 Sub60AudioPacer-unsigned.ipa Payload
 
