@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "Sub60 Audio Pacer",
+    "slug": "sub60-audio-pacer",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#070A0F",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.runner.sub60audiopacer",
+      "infoPlist": {
+        "NSBluetoothAlwaysUsageDescription": "Sub60 Audio Pacer cần quyền Bluetooth chạy nền để đọc nhịp tim thời gian thực từ đồng hồ HUAWEI WATCH FIT 4 (chuẩn 0x180D) ngay cả khi khóa màn hình iPhone.",
+        "NSBluetoothPeripheralUsageDescription": "Sub60 Audio Pacer cần kết nối Bluetooth với đồng hồ HUAWEI WATCH FIT 4 để theo dõi ngưỡng an toàn tim mạch 178 bpm.",
+        "NSLocationWhenInUseUsageDescription": "Sub60 Audio Pacer cần vị trí GPS chính xác để tính toán Rolling Pace và quãng đường chạy bộ.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Sub60 Audio Pacer cần quyền GPS chạy nền (Always) để duy trì tính toán Pace và nhắc giọng nói qua tai nghe khi bạn khóa màn hình bỏ điện thoại vào túi chạy bộ.",
+        "NSLocationAlwaysUsageDescription": "Sub60 Audio Pacer cần quyền vị trí chạy nền liên tục để không bị gián đoạn khi khóa màn hình iPhone.",
+        "NSMotionUsageDescription": "Sub60 Audio Pacer sử dụng cảm biến chuyển động để hỗ trợ ước tính guồng chân (Cadence) khi chạy.",
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": [
+          "location",
+          "audio",
+          "bluetooth-central"
+        ]
+      }
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Cho phép Sub60 Audio Pacer truy cập GPS chạy nền để đọc Pace qua tai nghe khi khóa màn hình.",
+          "locationAlwaysPermission": "Cho phép Sub60 Audio Pacer truy cập GPS chạy nền liên tục.",
+          "locationWhenInUsePermission": "Cho phép Sub60 Audio Pacer truy cập GPS khi đang chạy.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true
+        }
+      ],
+      [
+        "@config-plugins/react-native-ble-plx",
+        {
+          "isBackgroundEnabled": true,
+          "modes": [
+            "central"
+          ],
+          "bluetoothAlwaysPermission": "Cho phép Sub60 Audio Pacer kết nối BLE với HUAWEI WATCH FIT 4 để đọc nhịp tim liên tục khi chạy."
+        }
+      ]
+    ]
+  }
+}
