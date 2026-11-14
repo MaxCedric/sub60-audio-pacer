@@ -4,11 +4,20 @@
     "slug": "sub60-audio-pacer",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#070A0F",
+    "newArchEnabled": false,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#070A0F"
+    },
     "ios": {
+      "newArchEnabled": false,
       "supportsTablet": false,
       "bundleIdentifier": "com.runner.sub60audiopacer",
+      "icon": "./assets/icon.png",
       "infoPlist": {
         "NSBluetoothAlwaysUsageDescription": "Sub60 Audio Pacer cần quyền Bluetooth chạy nền để đọc nhịp tim thời gian thực từ đồng hồ HUAWEI WATCH FIT 4 (chuẩn 0x180D) ngay cả khi khóa màn hình iPhone.",
         "NSBluetoothPeripheralUsageDescription": "Sub60 Audio Pacer cần kết nối Bluetooth với đồng hồ HUAWEI WATCH FIT 4 để theo dõi ngưỡng an toàn tim mạch 178 bpm.",
@@ -23,6 +32,17 @@
           "bluetooth-central"
         ]
       }
+    },
+    "android": {
+      "newArchEnabled": false,
+      "package": "com.runner.sub60audiopacer",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#070A0F"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
     },
     "plugins": [
       [

@@ -7,9 +7,11 @@ import {
   TouchableOpacity,
   SafeAreaView,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import trainingPlanData from '../data/trainingPlan.json';
 import { BleConnectionStatus } from '../hooks/useBleHeartRate';
 import { WorkoutPlan, formatPaceDisplay } from '../hooks/useRunningPacer';
+import { audioCoach } from '../services/audioCoach';
 
 interface HomeScreenProps {
   bleStatus: BleConnectionStatus;
@@ -35,197 +37,210 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onSelectWorkout,
 }) => {
   const [selectedWeekIndex, setSelectedWeekIndex] = useState<number>(0);
+  const [ltHrBpm, setLtHrBpm] = useState<number>(() => audioCoach.getLactateThresholdHr());
+
   const { athleteProfile, weeks } = trainingPlanData;
   const activeWeek = weeks[selectedWeekIndex] || weeks[0];
 
-  const getBleBadgeColor = () => {
-    if (bleStatus === 'CONNECTED' || bleStatus === 'SIMULATED') return '#00E676';
-    if (bleStatus === 'SCANNING' || bleStatus === 'CONNECTING' || bleStatus === 'RECONNECTING') {
-      return '#FFB800';
-    }
-    if (bleStatus === 'ERROR') return '#FF2A6D';
-    return '#8A99AD';
-  };
+  const isBleConnected = bleStatus === 'CONNECTED' || bleStatus === 'SIMULATED';
+  const isScanning = bleStatus === 'SCANNING' || bleStatus === 'CONNECTING' || bleStatus === 'RECONNECTING';
 
-  const getBleStatusText = () => {
-    switch (bleStatus) {
-      case 'CONNECTED':
-        return `Đã kết nối: ${deviceName || 'HUAWEI WATCH FIT 4'}`;
-      case 'SIMULATED':
-        return 'Đang chạy chế độ mô phỏng BLE (Test)';
-      case 'SCANNING':
-        return 'Đang quét BLE 0x180D...';
-      case 'CONNECTING':
-        return 'Đang kết nối HUAWEI WATCH FIT 4...';
-      case 'RECONNECTING':
-        return 'Mất tín hiệu - Đang tự kết nối lại...';
-      case 'ERROR':
-        return 'Lỗi kết nối BLE';
-      default:
-        return 'Chưa kết nối đồng hồ (Bật HR Broadcast trên Watch Fit 4)';
-    }
+  const handleAdjustLtHr = (delta: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const next = Math.max(150, Math.min(195, ltHrBpm + delta));
+    setLtHrBpm(next);
+    audioCoach.setLactateThresholdHr(next);
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.container}>
-        {/* Header & Mục tiêu giải chạy */}
-        <View style={styles.headerCard}>
-          <View style={styles.headerTopRow}>
-            <View>
-              <Text style={styles.appTitle}>SUB60 AUDIO PACER</Text>
-              <Text style={styles.raceCountdown}>
-                Mục tiêu 10 km: 16/01/2027 • Pace 5'58"–6'00"/km
-              </Text>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+        {/* Header Brand */}
+        <View style={styles.brandRow}>
+          <View>
+            <View style={styles.brandTitleRow}>
+              <Text style={styles.brandSub60}>SUB60</Text>
+              <View style={styles.voltPill}>
+                <Text style={styles.voltPillText}>AUDIO PACER</Text>
+              </View>
             </View>
-            <View style={styles.safetyBadge}>
-              <Text style={styles.safetyBadgeLabel}>HARD LIMIT</Text>
-              <Text style={styles.safetyBadgeValue}>{athleteProfile.hardLimitHrBpm} BPM</Text>
-            </View>
-          </View>
-
-          <View style={styles.profileMetricsRow}>
-            <View style={styles.metricPill}>
-              <Text style={styles.metricLabel}>VO2max</Text>
-              <Text style={styles.metricVal}>{athleteProfile.vo2Max}</Text>
-            </View>
-            <View style={styles.metricPill}>
-              <Text style={styles.metricLabel}>Ngưỡng LT</Text>
-              <Text style={styles.metricVal}>{athleteProfile.lactateThresholdHrBpm} bpm</Text>
-            </View>
-            <View style={styles.metricPill}>
-              <Text style={styles.metricLabel}>Huyết áp nền</Text>
-              <Text style={styles.metricVal}>{athleteProfile.bloodPressureBaseline}</Text>
-            </View>
-            <View style={styles.metricPill}>
-              <Text style={styles.metricLabel}>Cadence đích</Text>
-              <Text style={styles.metricVal}>{athleteProfile.targetCadenceBpm} spm</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Trạng thái kết nối BLE HUAWEI WATCH FIT 4 */}
-        <View style={styles.bleCard}>
-          <View style={styles.bleHeaderRow}>
-            <View style={styles.bleStatusRow}>
-              <View style={[styles.statusDot, { backgroundColor: getBleBadgeColor() }]} />
-              <Text style={styles.bleStatusTitle}>{getBleStatusText()}</Text>
-            </View>
-            <Text style={styles.liveHrText}>
-              {heartRate ? `${heartRate} BPM` : '-- BPM'}
+            <Text style={styles.brandSubtitle}>
+              10 KM RACE • {athleteProfile.raceDate} • VO2MAX {athleteProfile.vo2Max}
             </Text>
           </View>
+          <View style={styles.goalChip}>
+            <Text style={styles.goalChipLabel}>RACE PACE</Text>
+            <Text style={styles.goalChipValue}>5'58"</Text>
+          </View>
+        </View>
 
-          {bleError ? <Text style={styles.bleErrorText}>{bleError}</Text> : null}
+        {/* Bento Grid 2 Cột: Watch Fit 4 + Ngưỡng Lactate */}
+        <View style={styles.bentoRow}>
+          {/* Tile Trái: Kết nối BLE Watch Fit 4 */}
+          <View style={[styles.bentoTile, isBleConnected && styles.bentoTileActiveVolt]}>
+            <View style={styles.tileHeader}>
+              <View
+                style={[
+                  styles.statusDot,
+                  isBleConnected
+                    ? styles.dotVolt
+                    : isScanning
+                    ? styles.dotAmber
+                    : styles.dotMuted,
+                ]}
+              />
+              <Text style={styles.tileLabel}>WATCH FIT 4</Text>
+            </View>
 
-          <View style={styles.bleActionRow}>
-            {bleStatus === 'CONNECTED' ? (
-              <TouchableOpacity style={styles.secondaryBtn} onPress={onDisconnectBle}>
-                <Text style={styles.secondaryBtnText}>Ngắt kết nối</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity style={styles.primaryBleBtn} onPress={onScanBle}>
-                <Text style={styles.primaryBleBtnText}>
-                  {bleStatus === 'SCANNING' ? 'Đang quét 0x180D...' : 'Kết nối HUAWEI WATCH FIT 4'}
-                </Text>
-              </TouchableOpacity>
-            )}
+            <View style={styles.hrReadoutRow}>
+              <Text style={styles.hrBigValue}>{heartRate ?? '--'}</Text>
+              <Text style={styles.hrUnit}>BPM</Text>
+            </View>
+
+            <Text style={styles.tileSubText} numberOfLines={1}>
+              {isBleConnected ? deviceName || 'Đã kết nối BLE' : isScanning ? 'Đang quét...' : 'Chưa kết nối'}
+            </Text>
 
             <TouchableOpacity
-              style={[styles.simBtn, isSimulatedBle && styles.simBtnActive]}
-              onPress={() => onToggleSimBle(false)}
+              style={[styles.tileBtn, isBleConnected ? styles.tileBtnGhost : styles.tileBtnVolt]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                isBleConnected ? onDisconnectBle() : onScanBle();
+              }}
             >
-              <Text style={styles.simBtnText}>
-                {isSimulatedBle ? 'Tắt Mô phỏng' : 'Test HR 154'}
+              <Text style={[styles.tileBtnText, !isBleConnected && styles.tileBtnTextDark]}>
+                {isBleConnected ? 'Ngắt kết nối' : 'Kết nối BLE'}
               </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.simDangerBtn}
-              onPress={() => onToggleSimBle(true)}
-            >
-              <Text style={styles.simDangerBtnText}>Test HR 180</Text>
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.stravaNote}>
-            * Chỉ đọc nhịp tim qua BLE 0x2A37 để nhắc tai nghe. Không đẩy trùng bài lên Strava.
-          </Text>
+          {/* Tile Phải: Ngưỡng Lactate linh hoạt */}
+          <View style={styles.bentoTile}>
+            <View style={styles.tileHeader}>
+              <View style={[styles.statusDot, styles.dotCoral]} />
+              <Text style={styles.tileLabel}>NGƯỠNG LACTATE</Text>
+            </View>
+
+            <View style={styles.lthrStepperRow}>
+              <TouchableOpacity style={styles.stepBtn} onPress={() => handleAdjustLtHr(-1)}>
+                <Text style={styles.stepBtnText}>−</Text>
+              </TouchableOpacity>
+              <Text style={styles.lthrBigValue}>{ltHrBpm}</Text>
+              <TouchableOpacity style={styles.stepBtn} onPress={() => handleAdjustLtHr(1)}>
+                <Text style={styles.stepBtnText}>+</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.tileSubText}>
+              Sớm: {ltHrBpm - 5} • Đỏ: {ltHrBpm + 3} bpm
+            </Text>
+
+            <View style={styles.simMiniRow}>
+              <TouchableOpacity
+                style={[styles.simMiniBtn, isSimulatedBle && styles.simMiniBtnActive]}
+                onPress={() => onToggleSimBle(false)}
+              >
+                <Text style={styles.simMiniText}>{isSimulatedBle ? 'Tắt Sim' : 'Sim HR'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.simMiniDangerBtn}
+                onPress={() => onToggleSimBle(true)}
+              >
+                <Text style={styles.simMiniDangerText}>Test 180</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
 
-        {/* Thanh chọn Tuần (Tuần 1 -> Tuần 10) */}
-        <Text style={styles.sectionHeader}>GIÁO ÁN 10 TUẦN (10/11/2026 – 16/01/2027)</Text>
+        {bleError ? (
+          <View style={styles.errorPill}>
+            <Text style={styles.errorPillText}>{bleError}</Text>
+          </View>
+        ) : null}
+
+        {/* Thanh chọn Tuần (Pill Carousel) */}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>GIÁO ÁN 10 TUẦN</Text>
+          <Text style={styles.sectionHint}>T3 Cầu lông • T5/T7 Chạy</Text>
+        </View>
+
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.weekTabsRow}
+          contentContainerStyle={styles.weekPillsRow}
         >
           {weeks.map((week, idx) => {
             const isSelected = idx === selectedWeekIndex;
             return (
               <TouchableOpacity
                 key={week.weekNumber}
-                style={[styles.weekTab, isSelected && styles.weekTabActive]}
-                onPress={() => setSelectedWeekIndex(idx)}
+                style={[styles.weekPill, isSelected && styles.weekPillActive]}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setSelectedWeekIndex(idx);
+                }}
               >
-                <Text style={[styles.weekTabTitle, isSelected && styles.weekTabTitleActive]}>
-                  Tuần {week.weekNumber}
+                <Text style={[styles.weekPillNum, isSelected && styles.weekPillTextDark]}>
+                  T{week.weekNumber}
                 </Text>
-                <Text style={styles.weekTabDate}>{week.dateRange.split(' - ')[0]}</Text>
+                <Text style={[styles.weekPillDate, isSelected && styles.weekPillDateDark]}>
+                  {week.dateRange.split(' - ')[0].slice(0, 5)}
+                </Text>
               </TouchableOpacity>
             );
           })}
         </ScrollView>
 
-        {/* Trọng tâm của tuần đang chọn */}
-        <View style={styles.weekFocusBanner}>
-          <Text style={styles.weekFocusDate}>{activeWeek.dateRange}</Text>
-          <Text style={styles.weekFocusText}>{activeWeek.focus}</Text>
-          <Text style={styles.badmintonNote}>
-            Lịch cố định: Thứ Ba đánh cầu lông • Thứ Năm chạy Tempo/Interval • Thứ Bảy chạy Long Run
-          </Text>
+        {/* Banner trọng tâm tuần */}
+        <View style={styles.focusCard}>
+          <Text style={styles.focusDate}>{activeWeek.dateRange}</Text>
+          <Text style={styles.focusText}>{activeWeek.focus}</Text>
         </View>
 
-        {/* Danh sách các buổi chạy trong tuần */}
+        {/* Danh sách buổi chạy trong tuần */}
         {activeWeek.workouts.map((workout) => (
           <View key={workout.id} style={styles.workoutCard}>
-            <View style={styles.workoutTopRow}>
-              <View style={styles.dayBadge}>
-                <Text style={styles.dayBadgeText}>{workout.dayOfWeek}</Text>
+            <View style={styles.workoutMetaRow}>
+              <View style={styles.workoutBadgesLeft}>
+                <View style={styles.dayChip}>
+                  <Text style={styles.dayChipText}>{workout.dayOfWeek.toUpperCase()}</Text>
+                </View>
+                <Text style={styles.workoutDate}>{workout.date}</Text>
               </View>
-              <Text style={styles.workoutDateText}>{workout.date}</Text>
-              <View style={styles.distanceBadge}>
-                <Text style={styles.distanceBadgeText}>{workout.totalDistanceKm} KM</Text>
+              <View style={styles.kmBadge}>
+                <Text style={styles.kmBadgeText}>{workout.totalDistanceKm} KM</Text>
               </View>
             </View>
 
             <Text style={styles.workoutTitle}>{workout.title}</Text>
             <Text style={styles.workoutDesc}>{workout.description}</Text>
 
-            {/* Tóm tắt các chặng tự động */}
-            <View style={styles.segmentPreviewList}>
+            <View style={styles.segmentsBox}>
               {workout.segments.slice(0, 4).map((seg) => (
-                <View key={seg.id} style={styles.segmentPreviewItem}>
-                  <Text style={styles.segmentPreviewName} numberOfLines={1}>
-                    • {seg.name}
+                <View key={seg.id} style={styles.segRow}>
+                  <Text style={styles.segName} numberOfLines={1}>
+                    {seg.name}
                   </Text>
-                  <Text style={styles.segmentPreviewMeta}>
-                    {formatPaceDisplay(seg.targetPaceMinSec)}–{formatPaceDisplay(seg.targetPaceMaxSec)} | HR &lt;{seg.maxHrBpm}
+                  <Text style={styles.segTarget}>
+                    {formatPaceDisplay(seg.targetPaceMinSec)}–{formatPaceDisplay(seg.targetPaceMaxSec)}
                   </Text>
                 </View>
               ))}
               {workout.segments.length > 4 ? (
-                <Text style={styles.moreSegmentsText}>
-                  + {workout.segments.length - 4} chặng tự động tiếp theo...
+                <Text style={styles.moreSegText}>
+                  + {workout.segments.length - 4} chặng tự động tiếp theo
                 </Text>
               ) : null}
             </View>
 
             <TouchableOpacity
-              style={styles.startWorkoutBtn}
-              onPress={() => onSelectWorkout(workout as WorkoutPlan)}
+              style={styles.ctaVoltBtn}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                onSelectWorkout(workout as WorkoutPlan);
+              }}
             >
-              <Text style={styles.startWorkoutBtnText}>MỞ BUỔI CHẠY & KÍCH HOẠT AUDIO COACH</Text>
+              <Text style={styles.ctaVoltBtnText}>CHẠY NGAY VỚI AUDIO COACH</Text>
             </TouchableOpacity>
           </View>
         ))}
@@ -237,293 +252,337 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#070A0F',
+    backgroundColor: '#07090D',
   },
   container: {
     padding: 16,
     paddingBottom: 40,
   },
-  headerCard: {
-    backgroundColor: '#111722',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#1E293B',
-    marginBottom: 14,
-  },
-  headerTopRow: {
+  brandRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 14,
+    marginBottom: 16,
   },
-  appTitle: {
-    color: '#00F5D4',
-    fontSize: 20,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-  },
-  raceCountdown: {
-    color: '#CBD5E1',
-    fontSize: 13,
-    marginTop: 4,
-    fontWeight: '600',
-  },
-  safetyBadge: {
-    backgroundColor: '#2A0F18',
-    borderWidth: 1,
-    borderColor: '#FF2A6D',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    alignItems: 'center',
-  },
-  safetyBadgeLabel: {
-    color: '#FF8FA3',
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  safetyBadgeValue: {
-    color: '#FF2A6D',
-    fontSize: 15,
-    fontWeight: '900',
-  },
-  profileMetricsRow: {
+  brandTitleRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'center',
     gap: 8,
   },
-  metricPill: {
-    flex: 1,
-    backgroundColor: '#0B0F17',
-    borderRadius: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 6,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#1E293B',
+  brandSub60: {
+    color: '#F8FAFC',
+    fontSize: 26,
+    fontWeight: '900',
+    letterSpacing: -0.5,
   },
-  metricLabel: {
+  voltPill: {
+    backgroundColor: '#00F0FF',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  voltPillText: {
+    color: '#07090D',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.6,
+  },
+  brandSubtitle: {
     color: '#64748B',
     fontSize: 11,
     fontWeight: '600',
-  },
-  metricVal: {
-    color: '#F8FAFC',
-    fontSize: 12,
-    fontWeight: '800',
     marginTop: 2,
   },
-  bleCard: {
-    backgroundColor: '#111722',
-    borderRadius: 16,
-    padding: 16,
+  goalChip: {
+    backgroundColor: '#10141D',
     borderWidth: 1,
-    borderColor: '#1E293B',
-    marginBottom: 18,
+    borderColor: '#1E2534',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 14,
+    alignItems: 'flex-end',
   },
-  bleHeaderRow: {
+  goalChipLabel: {
+    color: '#64748B',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  goalChipValue: {
+    color: '#D2FF00',
+    fontSize: 16,
+    fontWeight: '900',
+    fontVariant: ['tabular-nums'],
+  },
+  bentoRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
+  bentoTile: {
+    flex: 1,
+    backgroundColor: '#10141D',
+    borderRadius: 22,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#1E2534',
+    justifyContent: 'space-between',
+  },
+  bentoTileActiveVolt: {
+    borderColor: '#00F0FF',
+  },
+  tileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  dotVolt: {
+    backgroundColor: '#00F0FF',
+  },
+  dotAmber: {
+    backgroundColor: '#FFB020',
+  },
+  dotCoral: {
+    backgroundColor: '#FF3B5C',
+  },
+  dotMuted: {
+    backgroundColor: '#475569',
+  },
+  tileLabel: {
+    color: '#94A3B8',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.7,
+  },
+  hrReadoutRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 4,
+  },
+  hrBigValue: {
+    color: '#F8FAFC',
+    fontSize: 34,
+    fontWeight: '900',
+    fontVariant: ['tabular-nums'],
+  },
+  hrUnit: {
+    color: '#64748B',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  tileSubText: {
+    color: '#64748B',
+    fontSize: 11,
+    marginTop: 2,
+    marginBottom: 10,
+  },
+  tileBtn: {
+    borderRadius: 12,
+    paddingVertical: 9,
+    alignItems: 'center',
+  },
+  tileBtnVolt: {
+    backgroundColor: '#00F0FF',
+  },
+  tileBtnGhost: {
+    backgroundColor: '#1A2130',
+  },
+  tileBtnText: {
+    color: '#E2E8F0',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  tileBtnTextDark: {
+    color: '#07090D',
+  },
+  lthrStepperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginVertical: 2,
+  },
+  stepBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: '#1A2130',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepBtnText: {
+    color: '#00F0FF',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  lthrBigValue: {
+    color: '#F8FAFC',
+    fontSize: 28,
+    fontWeight: '900',
+    fontVariant: ['tabular-nums'],
+  },
+  simMiniRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  simMiniBtn: {
+    flex: 1,
+    backgroundColor: '#1A2130',
+    paddingVertical: 7,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  simMiniBtnActive: {
+    borderWidth: 1,
+    borderColor: '#00F0FF',
+  },
+  simMiniText: {
+    color: '#CBD5E1',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  simMiniDangerBtn: {
+    flex: 1,
+    backgroundColor: '#2A1219',
+    paddingVertical: 7,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  simMiniDangerText: {
+    color: '#FF3B5C',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  errorPill: {
+    backgroundColor: '#2A1219',
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 14,
+  },
+  errorPillText: {
+    color: '#FCA5A5',
+    fontSize: 12,
+  },
+  sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
-  },
-  bleStatusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    paddingRight: 8,
-  },
-  statusDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 8,
-  },
-  bleStatusTitle: {
-    color: '#E2E8F0',
-    fontSize: 13,
-    fontWeight: '700',
-    flex: 1,
-  },
-  liveHrText: {
-    color: '#FF2A6D',
-    fontSize: 22,
-    fontWeight: '900',
-  },
-  bleErrorText: {
-    color: '#FF6B8B',
-    fontSize: 12,
     marginBottom: 10,
   },
-  bleActionRow: {
-    flexDirection: 'row',
-    gap: 8,
-    alignItems: 'center',
-  },
-  primaryBleBtn: {
-    flex: 2,
-    backgroundColor: '#00F5D4',
-    paddingVertical: 11,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  primaryBleBtnText: {
-    color: '#05080D',
-    fontWeight: '800',
-    fontSize: 13,
-  },
-  secondaryBtn: {
-    flex: 2,
-    backgroundColor: '#1E293B',
-    paddingVertical: 11,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  secondaryBtnText: {
+  sectionTitle: {
     color: '#F8FAFC',
-    fontWeight: '700',
-    fontSize: 13,
-  },
-  simBtn: {
-    flex: 1,
-    backgroundColor: '#1E293B',
-    paddingVertical: 11,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  simBtnActive: {
-    backgroundColor: '#0284C7',
-  },
-  simBtnText: {
-    color: '#E2E8F0',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  simDangerBtn: {
-    flex: 1,
-    backgroundColor: '#3B101E',
-    borderWidth: 1,
-    borderColor: '#FF2A6D',
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  simDangerBtnText: {
-    color: '#FF8FA3',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '800',
+    letterSpacing: 0.8,
   },
-  stravaNote: {
+  sectionHint: {
     color: '#64748B',
     fontSize: 11,
-    marginTop: 10,
-    fontStyle: 'italic',
+    fontWeight: '600',
   },
-  sectionHeader: {
-    color: '#94A3B8',
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0.6,
-    marginBottom: 10,
-  },
-  weekTabsRow: {
+  weekPillsRow: {
     gap: 8,
     paddingBottom: 12,
   },
-  weekTab: {
-    backgroundColor: '#111722',
+  weekPill: {
+    backgroundColor: '#10141D',
+    borderWidth: 1,
+    borderColor: '#1E2534',
     paddingHorizontal: 14,
     paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#1E293B',
+    borderRadius: 16,
     alignItems: 'center',
+    minWidth: 58,
   },
-  weekTabActive: {
-    backgroundColor: '#00F5D4',
-    borderColor: '#00F5D4',
+  weekPillActive: {
+    backgroundColor: '#D2FF00',
+    borderColor: '#D2FF00',
   },
-  weekTabTitle: {
+  weekPillNum: {
     color: '#E2E8F0',
-    fontWeight: '800',
-    fontSize: 13,
+    fontSize: 14,
+    fontWeight: '900',
   },
-  weekTabTitleActive: {
-    color: '#05080D',
-  },
-  weekTabDate: {
+  weekPillDate: {
     color: '#64748B',
-    fontSize: 11,
+    fontSize: 10,
     marginTop: 2,
     fontWeight: '600',
   },
-  weekFocusBanner: {
-    backgroundColor: '#0D131D',
-    borderRadius: 12,
+  weekPillTextDark: {
+    color: '#07090D',
+  },
+  weekPillDateDark: {
+    color: '#1E293B',
+  },
+  focusCard: {
+    backgroundColor: '#10141D',
+    borderRadius: 16,
     padding: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: '#00F5D4',
+    borderLeftWidth: 3,
+    borderLeftColor: '#D2FF00',
     marginBottom: 14,
   },
-  weekFocusDate: {
-    color: '#00F5D4',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  weekFocusText: {
-    color: '#F8FAFC',
-    fontSize: 14,
-    fontWeight: '700',
-    marginTop: 4,
-  },
-  badmintonNote: {
-    color: '#94A3B8',
+  focusDate: {
+    color: '#D2FF00',
     fontSize: 11,
-    marginTop: 6,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  focusText: {
+    color: '#CBD5E1',
+    fontSize: 13,
+    lineHeight: 18,
   },
   workoutCard: {
-    backgroundColor: '#111722',
-    borderRadius: 16,
+    backgroundColor: '#10141D',
+    borderRadius: 24,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#1E293B',
+    borderColor: '#1E2534',
     marginBottom: 14,
   },
-  workoutTopRow: {
+  workoutMetaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  workoutBadgesLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
+    gap: 8,
   },
-  dayBadge: {
-    backgroundColor: '#1E293B',
+  dayChip: {
+    backgroundColor: '#1A2130',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
   },
-  dayBadgeText: {
-    color: '#38BDF8',
-    fontSize: 12,
+  dayChipText: {
+    color: '#00F0FF',
+    fontSize: 10,
     fontWeight: '800',
   },
-  workoutDateText: {
-    color: '#94A3B8',
+  workoutDate: {
+    color: '#64748B',
     fontSize: 12,
     fontWeight: '600',
   },
-  distanceBadge: {
-    backgroundColor: '#062E26',
+  kmBadge: {
+    backgroundColor: '#1A2130',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#00E676',
   },
-  distanceBadgeText: {
-    color: '#00E676',
-    fontSize: 12,
-    fontWeight: '900',
+  kmBadgeText: {
+    color: '#F8FAFC',
+    fontSize: 11,
+    fontWeight: '800',
   },
   workoutTitle: {
     color: '#F8FAFC',
@@ -532,50 +591,50 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   workoutDesc: {
-    color: '#CBD5E1',
+    color: '#94A3B8',
     fontSize: 13,
     marginBottom: 12,
   },
-  segmentPreviewList: {
-    backgroundColor: '#090D14',
-    borderRadius: 10,
-    padding: 10,
+  segmentsBox: {
+    backgroundColor: '#0A0D14',
+    borderRadius: 14,
+    padding: 12,
     marginBottom: 14,
     gap: 6,
   },
-  segmentPreviewItem: {
+  segRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  segmentPreviewName: {
+  segName: {
     color: '#CBD5E1',
     fontSize: 12,
-    fontWeight: '600',
     flex: 1,
     paddingRight: 8,
   },
-  segmentPreviewMeta: {
-    color: '#00F5D4',
-    fontSize: 11,
+  segTarget: {
+    color: '#D2FF00',
+    fontSize: 12,
     fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
-  moreSegmentsText: {
+  moreSegText: {
     color: '#64748B',
     fontSize: 11,
     fontStyle: 'italic',
     marginTop: 2,
   },
-  startWorkoutBtn: {
-    backgroundColor: '#00E676',
-    paddingVertical: 14,
-    borderRadius: 12,
+  ctaVoltBtn: {
+    backgroundColor: '#D2FF00',
+    borderRadius: 16,
+    paddingVertical: 15,
     alignItems: 'center',
   },
-  startWorkoutBtnText: {
-    color: '#04120B',
+  ctaVoltBtnText: {
+    color: '#07090D',
     fontSize: 14,
     fontWeight: '900',
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
   },
 });

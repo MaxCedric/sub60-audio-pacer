@@ -1,17 +1,18 @@
 {
   "athleteProfile": {
     "name": "Runner Sub60",
-    "baselineDate": "2026-11",
+    "baselineDate": "2026-11-12",
     "raceDate": "2027-01-16",
     "weightKg": 73.7,
-    "vo2Max": 35,
+    "vo2Max": 36,
     "pr5kTime": "35:44",
     "pr5kPaceSecPerKm": 428,
-    "lactateThresholdHrBpm": 176,
-    "lactateThresholdPaceSecPerKm": 451,
+    "lactateThresholdHrBpm": 175,
+    "lactateThresholdPaceSecPerKm": 461,
     "bloodPressureBaseline": "128/88 mmHg",
+    "earlyWarningHrBpm": 170,
     "hardLimitHrBpm": 178,
-    "hardLimitSustainedSeconds": 30,
+    "hardLimitSustainedSeconds": 8,
     "targetCadenceBpm": 172,
     "primaryGoal": {
       "name": "Sub 60 phút (10 km)",
@@ -28,49 +29,8 @@
     {
       "weekNumber": 1,
       "dateRange": "10/11/2026 - 15/11/2026",
-      "focus": "Khởi động nền tảng hiếu khí & làm quen kiểm soát nhịp tim",
+      "focus": "Khởi động nền tảng hiếu khí & kiểm soát nhịp tim dưới 158 bpm",
       "workouts": [
-        {
-          "id": "w1-thu-tempo",
-          "dayOfWeek": "Thứ Năm",
-          "date": "2026-11-12",
-          "title": "Tuần 1 - T5: Tempo Ngắn 4,0 km",
-          "type": "TEMPO",
-          "totalDistanceKm": 4.0,
-          "description": "1km nhẹ + 2,5km pace 7'00\" + 0,5km nhẹ (HR < 172 bpm)",
-          "segments": [
-            {
-              "id": "w1-thu-1",
-              "name": "Khởi động (Warm-up)",
-              "type": "warmup",
-              "distanceMeters": 1000,
-              "targetPaceMinSec": 450,
-              "targetPaceMaxSec": 480,
-              "maxHrBpm": 158,
-              "voiceIntro": "Bắt đầu bài chạy Tempo tuần một. Một ki lô mét khởi động nhẹ nhàng, pace bảy phút ba mươi đến tám phút, giữ nhịp tim dưới một trăm năm mươi tám."
-            },
-            {
-              "id": "w1-thu-2",
-              "name": "Chặng chính Tempo 2,5 km",
-              "type": "main",
-              "distanceMeters": 2500,
-              "targetPaceMinSec": 415,
-              "targetPaceMaxSec": 425,
-              "maxHrBpm": 172,
-              "voiceIntro": "Vào chặng chính Tempo hai phẩy năm ki lô mét. Giữ đều pace bảy phút trên ki lô mét, nhịp tim dưới một trăm bảy mươi hai."
-            },
-            {
-              "id": "w1-thu-3",
-              "name": "Thả lỏng (Cool-down)",
-              "type": "cooldown",
-              "distanceMeters": 500,
-              "targetPaceMinSec": 460,
-              "targetPaceMaxSec": 510,
-              "maxHrBpm": 155,
-              "voiceIntro": "Chuyển sang năm trăm mét thả lỏng cuối bài. Giảm tốc độ và hít thở sâu."
-            }
-          ]
-        },
         {
           "id": "w1-sat-long",
           "dayOfWeek": "Thứ Bảy",
@@ -88,7 +48,7 @@
               "targetPaceMinSec": 450,
               "targetPaceMaxSec": 470,
               "maxHrBpm": 158,
-              "voiceIntro": "Bắt đầu bài chạy dài sáu ki lô mét tuần một. Duy trì pace bảy phút ba mươi đến bảy phút năm mươi, ưu tiên giữ nhịp tim dưới một trăm năm mươi tám."
+              "voiceIntro": "Bắt đầu bài chạy dài sáu ki lô mét tuần một. Duy trì pace bảy phút ba mươi đến bảy phút năm mươi, tuyệt đối không bứt tốc, giữ nhịp tim dưới một trăm năm mươi tám."
             }
           ]
         }

@@ -24,30 +24,60 @@ jobs:
       - name: Expo Prebuild iOS Native Project
         run: npx expo prebuild --platform ios --clean
 
-      - name: Install CocoaPods
+      - name: Disable Code Signing on Pods Targets
         working-directory: ios
-        run: pod install
+        run: |
+          ruby -e '
+          file = "Podfile"
+          if File.exist?(file)
+            content = File.read(file)
+            signing_patch = <<-RUBY
+              installer.pods_project.targets.each do |target|
+                target.build_configurations.each do |config|
+                  config.build_settings["CODE_SIGNING_ALLOWED"] = "NO"
+                  config.build_settings["CODE_SIGNING_REQUIRED"] = "NO"
+                  config.build_settings["EXPANDED_CODE_SIGN_IDENTITY"] = ""
+                end
+              end
+            RUBY
+            if content.include?("post_install do |installer|")
+              content.sub!("post_install do |installer|", "post_install do |installer|\n" + signing_patch)
+              File.write(file, content)
+              puts "Successfully patched Podfile with code-signing bypass."
+            end
+          end
+          '
+          pod install
 
       - name: Build Unsigned Release .app via Xcodebuild
         working-directory: ios
         run: |
           WORKSPACE=$(ls -d *.xcworkspace | head -n 1)
           SCHEME=$(basename "$WORKSPACE" .xcworkspace)
-          xcodebuild -workspace "$WORKSPACE" \
+          echo "Building Workspace: $WORKSPACE with Scheme: $SCHEME"
+          xcodebuild archive \
+            -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
             -configuration Release \
-            -sdk iphoneos \
-            -derivedDataPath build \
+            -destination "generic/platform=iOS" \
+            -archivePath "build/Sub60AudioPacer.xcarchive" \
+            CODE_SIGN_STYLE="Manual" \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            clean build
+            DEVELOPMENT_TEAM="" \
+            COMPILER_INDEX_STORE_ENABLE=NO
 
       - name: Package Payload into Sub60AudioPacer.ipa
         working-directory: ios
         run: |
           mkdir -p Payload
-          APP_PATH=$(find build/Build/Products/Release-iphoneos -name "*.app" | head -n 1)
+          APP_PATH=$(find build -name "*.app" | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: .app file not found in build directory!"
+            exit 1
+          fi
+          echo "Found .app at: $APP_PATH"
           cp -r "$APP_PATH" Payload/
           zip -r -9 Sub60AudioPacer-unsigned.ipa Payload
 

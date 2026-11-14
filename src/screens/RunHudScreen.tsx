@@ -8,6 +8,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { useKeepAwake } from 'expo-keep-awake';
+import * as Haptics from 'expo-haptics';
 import {
   WorkoutPlan,
   useRunningPacer,
@@ -32,7 +33,6 @@ export const RunHudScreen: React.FC<RunHudScreenProps> = ({
   onToggleSimBle,
   onBackToHome,
 }) => {
-  // Giữ màn hình sáng nếu người dùng mở xem, hoặc có thể khóa màn hình bỏ túi bình thường
   useKeepAwake();
 
   const {
@@ -63,49 +63,60 @@ export const RunHudScreen: React.FC<RunHudScreenProps> = ({
     startRun,
     togglePause,
     stopRun,
-  } = useRunningPacer(workout, heartRate, 178);
+  } = useRunningPacer(workout, heartRate);
 
-  const getPaceColor = () => {
-    if (paceZoneStatus === 'TOO_FAST') return '#FFB800';
-    if (paceZoneStatus === 'TOO_SLOW') return '#FF6B6B';
-    return '#00F5D4';
-  };
+  const activeZone = audioCoach.getHeartRateZone(heartRate);
 
-  const getHrColor = () => {
-    if (!heartRate) return '#64748B';
-    if (heartRate >= 178) return '#FF2A6D';
-    if (heartRate >= 172) return '#FFB800';
-    return '#00E676';
-  };
+  // Ambient Color Shift theo trạng thái chạy thực tế
+  const ambientColor = isHrDangerActive
+    ? '#FF3B5C'
+    : paceZoneStatus === 'IN_ZONE'
+    ? '#D2FF00'
+    : '#FFB020';
 
-  const targetMin = isFallbackSub65Active ? 385 : currentSegment.targetPaceMinSec;
-  const targetMax = isFallbackSub65Active ? 390 : currentSegment.targetPaceMaxSec;
+  const statusText = isHrDangerActive
+    ? 'QUÁ GIỚI HẠN TIM — ĐI BỘ NGAY'
+    : paceZoneStatus === 'IN_ZONE'
+    ? 'ĐÚNG NHỊP MỤC TIÊU'
+    : paceZoneStatus === 'TOO_FAST'
+    ? 'QUÁ NHANH — KÌM CHÂN LẠI'
+    : 'HƠI CHẬM — ĐẨY GUỒNG CHÂN';
 
-  const handleExit = async () => {
-    if (isRunning) {
-      await stopRun();
-    }
-    onBackToHome();
-  };
+  const segProgressPct = currentSegment.distanceMeters
+    ? Math.min(100, (segmentProgressMeters / currentSegment.distanceMeters) * 100)
+    : currentSegment.durationSeconds
+    ? Math.min(100, (segmentElapsedSeconds / currentSegment.durationSeconds) * 100)
+    : 0;
 
   return (
-    <SafeAreaView
-      style={[
-        styles.safeArea,
-        isHrDangerActive && styles.safeAreaDangerAlert,
-      ]}
-    >
-      <ScrollView contentContainerStyle={styles.container}>
-        {/* Thanh trạng thái trên cùng */}
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+        {/* Top Bar */}
         <View style={styles.topBar}>
-          <TouchableOpacity style={styles.backBtn} onPress={handleExit}>
-            <Text style={styles.backBtnText}>← Giáo án</Text>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => {
+              if (!isRunning) onBackToHome();
+            }}
+            disabled={isRunning}
+          >
+            <Text style={[styles.backBtnText, isRunning && styles.disabledText]}>
+              {isRunning ? 'ĐANG CHẠY' : '← TRỞ LẠI'}
+            </Text>
           </TouchableOpacity>
-          <Text style={styles.workoutHeaderTitle} numberOfLines={1}>
-            {workout.title}
-          </Text>
-          <View style={styles.blePill}>
-            <Text style={styles.blePillText}>{bleStatus}</Text>
+
+          <View style={styles.bleBadge}>
+            <View
+              style={[
+                styles.bleDot,
+                bleStatus === 'CONNECTED' || bleStatus === 'SIMULATED'
+                  ? styles.bleDotOn
+                  : styles.bleDotOff,
+              ]}
+            />
+            <Text style={styles.bleBadgeText}>
+              {bleStatus === 'CONNECTED' ? 'FIT 4 LIVE' : bleStatus === 'SIMULATED' ? 'SIM HR' : 'NO BLE'}
+            </Text>
           </View>
         </View>
 
@@ -115,223 +126,199 @@ export const RunHudScreen: React.FC<RunHudScreenProps> = ({
           </View>
         ) : null}
 
-        {isHrDangerActive ? (
-          <View style={styles.criticalHrBanner}>
-            <Text style={styles.criticalHrTitle}>
-              CẢNH BÁO ĐỎ: NHỊP TIM VƯỢT 178 BPM QUÁ 30 GIÂY!
-            </Text>
-            <Text style={styles.criticalHrSub}>
-              Giảm tốc độ ngay lập tức hoặc đi bộ 30 giây để bảo vệ tim mạch.
-            </Text>
-          </View>
-        ) : null}
-
-        {/* Chặng hiện tại trong State Machine */}
-        <View style={styles.segmentBanner}>
-          <View style={styles.segmentHeaderRow}>
-            <Text style={styles.segmentStepText}>
+        {/* Thẻ chặng hiện tại + Progress bar Volt */}
+        <View style={styles.segmentCard}>
+          <View style={styles.segmentTopRow}>
+            <Text style={styles.segmentCounter}>
               CHẶNG {currentSegmentIndex + 1}/{totalSegments}
             </Text>
-            <Text style={styles.segmentTargetText}>
-              Mục tiêu: {formatPaceDisplay(targetMin)} – {formatPaceDisplay(targetMax)}/km
+            <Text style={styles.segmentTarget}>
+              Mục tiêu: {formatPaceDisplay(currentSegment.targetPaceMinSec)}–
+              {formatPaceDisplay(currentSegment.targetPaceMaxSec)}
             </Text>
           </View>
-          <Text style={styles.segmentNameText}>{currentSegment.name}</Text>
-          <Text style={styles.segmentProgressText}>
-            {currentSegment.distanceMeters
-              ? `Đã chạy chặng này: ${(segmentProgressMeters / 1000).toFixed(2)} / ${(
-                  currentSegment.distanceMeters / 1000
-                ).toFixed(2)} km`
-              : `Thời gian chặng nghỉ: ${segmentElapsedSeconds}s / ${currentSegment.durationSeconds}s`}
+          <Text style={styles.segmentName} numberOfLines={1}>
+            {currentSegment.name}
           </Text>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${segProgressPct}%`, backgroundColor: ambientColor }]} />
+          </View>
         </View>
 
-        {/* KHỐI HIỂN THỊ CHÍNH (HUD CỠ LỚN TƯƠNG PHẢN CAO) */}
-        <View style={styles.hudGrid}>
-          {/* ROLLING PACE (15-20s) */}
-          <View style={styles.primaryHudBox}>
-            <Text style={styles.hudLabel}>ROLLING PACE (20S MƯỢT)</Text>
-            <Text style={[styles.giantPaceValue, { color: getPaceColor() }]}>
-              {formatPaceDisplay(rollingPaceSecPerKm)}
-            </Text>
-            <Text style={styles.paceStatusSub}>
-              {paceZoneStatus === 'IN_ZONE'
-                ? 'ĐÚNG VÙNG TỐC ĐỘ MỤC TIÊU'
-                : paceZoneStatus === 'TOO_FAST'
-                ? 'ĐANG CHẠY HƠI NHANH'
-                : 'ĐANG CHẠY HƠI CHẬM'}
-            </Text>
+        {/* HERO CARD: ROLLING PACE với viền Ambient Glow */}
+        <View style={[styles.heroPaceCard, { borderColor: ambientColor }]}>
+          <View style={styles.heroTopRow}>
+            <Text style={styles.heroLabel}>ROLLING PACE</Text>
+            <View style={[styles.zoneStatusBadge, { backgroundColor: ambientColor }]}>
+              <Text style={styles.zoneStatusBadgeText}>{statusText}</Text>
+            </View>
           </View>
 
-          {/* NHỊP TIM BLE 0x2A37 & QUÃNG ĐƯỜNG */}
-          <View style={styles.secondaryHudRow}>
-            <View style={styles.halfHudBox}>
-              <Text style={styles.hudLabel}>NHỊP TIM (WATCH FIT 4)</Text>
-              <Text style={[styles.hugeMetricValue, { color: getHrColor() }]}>
+          <Text style={[styles.heroPaceValue, { color: ambientColor }]}>
+            {formatPaceDisplay(rollingPaceSecPerKm)}
+          </Text>
+
+          <View style={styles.heroFooterRow}>
+            <Text style={styles.heroFooterText}>
+              TB: {formatPaceDisplay(averagePaceSecPerKm)}
+            </Text>
+            <Text style={styles.heroFooterText}>
+              Thời gian: {formatDurationDisplay(elapsedSeconds)}
+            </Text>
+          </View>
+        </View>
+
+        {/* BENTO METRICS: Quãng đường & Nhịp tim + Zone */}
+        <View style={styles.bentoRow}>
+          <View style={styles.metricCard}>
+            <Text style={styles.metricLabel}>QUÃNG ĐƯỜNG</Text>
+            <View style={styles.metricValRow}>
+              <Text style={[styles.metricBigVal, { color: '#00F0FF' }]}>{(totalDistanceMeters / 1000).toFixed(2)}</Text>
+              <Text style={styles.metricUnit}>KM</Text>
+            </View>
+          </View>
+
+          <View style={[styles.metricCard, isHrDangerActive && styles.metricCardDanger]}>
+            <Text style={styles.metricLabel}>NHỊP TIM {activeZone ? `• ZONE ${activeZone}` : ''}</Text>
+            <View style={styles.metricValRow}>
+              <Text style={[styles.metricBigVal, isHrDangerActive && { color: '#FF3B5C' }]}>
                 {heartRate ?? '--'}
               </Text>
-              <Text style={styles.unitSubText}>
-                BPM (Giới hạn đỏ: 178)
-              </Text>
-            </View>
-
-            <View style={styles.halfHudBox}>
-              <Text style={styles.hudLabel}>QUÃNG ĐƯỜNG</Text>
-              <Text style={styles.hugeMetricValue}>
-                {(totalDistanceMeters / 1000).toFixed(2)}
-              </Text>
-              <Text style={styles.unitSubText}>
-                KM / {workout.totalDistanceKm.toFixed(1)} KM
-              </Text>
-            </View>
-          </View>
-
-          {/* THỜI GIAN & PACE TRUNG BÌNH */}
-          <View style={styles.secondaryHudRow}>
-            <View style={styles.halfHudBox}>
-              <Text style={styles.hudLabel}>THỜI GIAN CHẠY</Text>
-              <Text style={styles.mediumMetricValue}>
-                {formatDurationDisplay(elapsedSeconds)}
-              </Text>
-            </View>
-
-            <View style={styles.halfHudBox}>
-              <Text style={styles.hudLabel}>PACE TRUNG BÌNH</Text>
-              <Text style={styles.mediumMetricValue}>
-                {formatPaceDisplay(averagePaceSecPerKm)}
-              </Text>
+              <Text style={styles.metricUnit}>BPM</Text>
             </View>
           </View>
         </View>
 
-        {/* BỘ ĐIỀU KHIỂN METRONOME (170-175 BPM) & KHOẢNG CÁCH ĐỌC SPLIT */}
+        {/* Bảng điều khiển nhanh Audio & Metronome */}
         <View style={styles.controlsCard}>
           <View style={styles.controlRow}>
-            <View>
-              <Text style={styles.controlTitle}>Metronome giữ nhịp chân ({metronomeBpm} spm)</Text>
-              <Text style={styles.controlSub}>Giữ sải chân ngắn, bảo vệ khớp gối</Text>
-            </View>
-            <TouchableOpacity
-              style={[styles.toggleBtn, isMetronomeOn && styles.toggleBtnOn]}
-              onPress={toggleMetronome}
-            >
-              <Text style={[styles.toggleBtnText, isMetronomeOn && styles.toggleBtnTextOn]}>
-                {isMetronomeOn ? 'ĐANG BẬT' : 'ĐANG TẮT'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.bpmSelectorRow}>
-            {[170, 172, 175].map((bpm) => (
+            <Text style={styles.controlLabel}>Metronome ({metronomeBpm} bpm)</Text>
+            <View style={styles.controlActions}>
               <TouchableOpacity
-                key={bpm}
-                style={[styles.pillChoice, metronomeBpm === bpm && styles.pillChoiceActive]}
-                onPress={() => changeMetronomeBpm(bpm)}
+                style={styles.miniStepBtn}
+                onPress={() => changeMetronomeBpm(metronomeBpm - 2)}
               >
-                <Text
-                  style={[
-                    styles.pillChoiceText,
-                    metronomeBpm === bpm && styles.pillChoiceTextActive,
-                  ]}
-                >
-                  {bpm} BPM
+                <Text style={styles.miniStepText}>−</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.miniStepBtn}
+                onPress={() => changeMetronomeBpm(metronomeBpm + 2)}
+              >
+                <Text style={styles.miniStepText}>+</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.pillToggle, isMetronomeOn && styles.pillToggleVolt]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  toggleMetronome();
+                }}
+              >
+                <Text style={[styles.pillToggleText, isMetronomeOn && styles.textDark]}>
+                  {isMetronomeOn ? 'ĐANG BẬT' : 'TẮT'}
                 </Text>
               </TouchableOpacity>
-            ))}
+            </View>
+          </View>
 
-            <TouchableOpacity
-              style={[
-                styles.pillChoice,
-                splitIntervalMeters === 500 && styles.pillChoiceActive,
-              ]}
-              onPress={() =>
-                setSplitIntervalMeters(splitIntervalMeters === 1000 ? 500 : 1000)
-              }
-            >
-              <Text
-                style={[
-                  styles.pillChoiceText,
-                  splitIntervalMeters === 500 && styles.pillChoiceTextActive,
-                ]}
+          <View style={styles.controlRow}>
+            <Text style={styles.controlLabel}>Báo mốc khoảng cách</Text>
+            <View style={styles.controlActions}>
+              <TouchableOpacity
+                style={[styles.pillToggle, splitIntervalMeters === 500 && styles.pillToggleVolt]}
+                onPress={() => setSplitIntervalMeters(500)}
               >
-                Báo mỗi: {splitIntervalMeters}m
+                <Text style={[styles.pillToggleText, splitIntervalMeters === 500 && styles.textDark]}>
+                  500m
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.pillToggle, splitIntervalMeters === 1000 && styles.pillToggleVolt]}
+                onPress={() => setSplitIntervalMeters(1000)}
+              >
+                <Text style={[styles.pillToggleText, splitIntervalMeters === 1000 && styles.textDark]}>
+                  1 km
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.controlRow}>
+            <Text style={styles.controlLabel}>Mục tiêu an toàn Sub 65</Text>
+            <TouchableOpacity
+              style={[styles.pillToggle, isFallbackSub65Active && styles.pillToggleAmber]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                toggleFallbackSub65();
+              }}
+            >
+              <Text style={[styles.pillToggleText, isFallbackSub65Active && styles.textDark]}>
+                {isFallbackSub65Active ? 'ĐANG BẬT SUB 65' : 'MỤC TIÊU SUB 60'}
               </Text>
             </TouchableOpacity>
           </View>
+        </View>
 
-          {/* Công tắc chuyển nhanh sang Phương án B (Sub 65 phút: 6'25"-6'30"/km) */}
+        {/* Thanh test nhanh tại nhà */}
+        <View style={styles.testRow}>
           <TouchableOpacity
-            style={[
-              styles.fallbackGoalBtn,
-              isFallbackSub65Active && styles.fallbackGoalBtnActive,
-            ]}
-            onPress={toggleFallbackSub65}
+            style={styles.testBtn}
+            onPress={() =>
+              audioCoach.announceDistanceMilestone(
+                Math.max(1, Math.round(totalDistanceMeters / 1000) || 1),
+                rollingPaceSecPerKm || 358,
+                heartRate || 162
+              )
+            }
           >
-            <Text style={styles.fallbackGoalBtnText}>
-              {isFallbackSub65Active
-                ? 'ĐANG DÙNG PHƯƠNG ÁN AN TOÀN SUB 65 (6\'25"–6\'30"/KM) - CHẠM ĐỂ VỀ SUB 60'
-                : 'CHUYỂN SANG PHƯƠNG ÁN DỰ PHÒNG SUB 65 PHÚT (6\'25"–6\'30"/KM)'}
+            <Text style={styles.testBtnText}>Thử Audio Coach</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.testBtn, gpsSimulatedPaceSec === 358 && styles.testBtnActive]}
+            onPress={() => setGpsSimulatedPaceSec(gpsSimulatedPaceSec ? null : 358)}
+          >
+            <Text style={styles.testBtnText}>
+              {gpsSimulatedPaceSec ? 'Tắt GPS giả lập' : 'Giả lập 5\'58"'}
             </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.testBtn} onPress={() => onToggleSimBle(true)}>
+            <Text style={[styles.testBtnText, { color: '#FF3B5C' }]}>Sim HR 180</Text>
           </TouchableOpacity>
         </View>
 
-        {/* BỘ CÔNG CỤ TEST NHANH GIỌNG NÓI & GIẢ LẬP TRONG NHÀ */}
-        <View style={styles.testPanel}>
-          <Text style={styles.testPanelTitle}>
-            KIỂM TRA NHANH TAI NGHE & AUDIO DUCKING (KHÔNG CẦN CHẠY NGOÀI TRỜI)
-          </Text>
-          <View style={styles.testBtnsRow}>
-            <TouchableOpacity
-              style={styles.testChip}
-              onPress={() =>
-                audioCoach.announceDistanceMilestone(
-                  1,
-                  rollingPaceSecPerKm || 358,
-                  heartRate || 156
-                )
-              }
-            >
-              <Text style={styles.testChipText}>Đọc thử mốc 1km</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.testChip}
-              onPress={() => onToggleSimBle(true)}
-            >
-              <Text style={styles.testChipText}>Giả lập HR 180 bpm</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.testChip,
-                gpsSimulatedPaceSec === 358 && styles.testChipActive,
-              ]}
-              onPress={() =>
-                setGpsSimulatedPaceSec(gpsSimulatedPaceSec ? null : 358)
-              }
-            >
-              <Text style={styles.testChipText}>
-                {gpsSimulatedPaceSec ? 'Tắt GPS giả lập' : 'Giả lập Pace 5\'58"'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* NÚT BẤM ĐIỀU KHIỂN BUỔI CHẠY CỠ LỚN */}
+        {/* Nút điều khiển chính: Bắt đầu / Tạm dừng / Giữ 1.2s để Dừng */}
         {!isRunning ? (
-          <TouchableOpacity style={styles.giantStartBtn} onPress={startRun}>
-            <Text style={styles.giantStartBtnText}>BẮT ĐẦU CHẠY (KHÓA MÀN HÌNH BỎ TÚI)</Text>
+          <TouchableOpacity
+            style={styles.giantVoltStartBtn}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+              startRun();
+            }}
+          >
+            <Text style={styles.giantVoltStartText}>BẮT ĐẦU CHẠY</Text>
           </TouchableOpacity>
         ) : (
           <View style={styles.runningActionsRow}>
-            <TouchableOpacity style={styles.pauseBtn} onPress={togglePause}>
-              <Text style={styles.pauseBtnText}>
-                {isPaused ? 'TIẾP TỤC CHẠY' : 'TẠM DỪNG'}
-              </Text>
+            <TouchableOpacity
+              style={styles.pauseBtn}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                togglePause();
+              }}
+            >
+              <Text style={styles.pauseBtnText}>{isPaused ? 'TIẾP TỤC' : 'TẠM DỪNG'}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.stopBtn} onPress={stopRun}>
-              <Text style={styles.stopBtnText}>KẾT THÚC</Text>
+            <TouchableOpacity
+              style={styles.holdStopBtn}
+              delayLongPress={1200}
+              onLongPress={() => {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                stopRun();
+              }}
+            >
+              <Text style={styles.holdStopBtnText}>GIỮ 1.2S ĐỂ DỪNG</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -343,310 +330,290 @@ export const RunHudScreen: React.FC<RunHudScreenProps> = ({
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#05070B',
-  },
-  safeAreaDangerAlert: {
-    backgroundColor: '#2B0712',
+    backgroundColor: '#07090D',
   },
   container: {
     padding: 16,
-    paddingBottom: 36,
+    paddingBottom: 40,
   },
   topBar: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    alignItems: 'center',
+    marginBottom: 14,
   },
   backBtn: {
     paddingVertical: 6,
     paddingHorizontal: 10,
-    backgroundColor: '#111722',
-    borderRadius: 8,
+    backgroundColor: '#10141D',
+    borderRadius: 10,
   },
   backBtnText: {
-    color: '#00F5D4',
+    color: '#00F0FF',
+    fontSize: 12,
     fontWeight: '800',
-    fontSize: 13,
   },
-  workoutHeaderTitle: {
-    color: '#F8FAFC',
-    fontSize: 14,
-    fontWeight: '800',
-    flex: 1,
-    textAlign: 'center',
-    marginHorizontal: 8,
+  disabledText: {
+    color: '#64748B',
   },
-  blePill: {
-    backgroundColor: '#111722',
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 8,
+  bleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#10141D',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#1E2534',
   },
-  blePillText: {
-    color: '#38BDF8',
+  bleDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  bleDotOn: {
+    backgroundColor: '#00F0FF',
+  },
+  bleDotOff: {
+    backgroundColor: '#475569',
+  },
+  bleBadgeText: {
+    color: '#E2E8F0',
     fontSize: 11,
     fontWeight: '800',
   },
   errorBanner: {
-    backgroundColor: '#3B101E',
-    borderColor: '#FF2A6D',
-    borderWidth: 1,
-    borderRadius: 10,
+    backgroundColor: '#2A1219',
+    borderRadius: 12,
     padding: 10,
     marginBottom: 12,
   },
   errorBannerText: {
-    color: '#FF8FA3',
+    color: '#FCA5A5',
     fontSize: 12,
-    fontWeight: '700',
   },
-  criticalHrBanner: {
-    backgroundColor: '#FF2A6D',
-    borderRadius: 12,
+  segmentCard: {
+    backgroundColor: '#10141D',
+    borderRadius: 18,
     padding: 14,
+    borderWidth: 1,
+    borderColor: '#1E2534',
     marginBottom: 12,
-    alignItems: 'center',
   },
-  criticalHrTitle: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '900',
-    textAlign: 'center',
-  },
-  criticalHrSub: {
-    color: '#FFE4E8',
-    fontSize: 12,
-    fontWeight: '700',
-    marginTop: 4,
-    textAlign: 'center',
-  },
-  segmentBanner: {
-    backgroundColor: '#111722',
-    borderRadius: 14,
-    padding: 14,
-    borderLeftWidth: 4,
-    borderLeftColor: '#00F5D4',
-    marginBottom: 14,
-  },
-  segmentHeaderRow: {
+  segmentTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 4,
   },
-  segmentStepText: {
-    color: '#00F5D4',
-    fontSize: 12,
+  segmentCounter: {
+    color: '#D2FF00',
+    fontSize: 11,
     fontWeight: '900',
+    letterSpacing: 0.6,
   },
-  segmentTargetText: {
-    color: '#FACC15',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  segmentNameText: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '800',
-    marginBottom: 4,
-  },
-  segmentProgressText: {
+  segmentTarget: {
     color: '#94A3B8',
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '700',
   },
-  hudGrid: {
-    gap: 12,
-    marginBottom: 14,
+  segmentName: {
+    color: '#F8FAFC',
+    fontSize: 15,
+    fontWeight: '800',
+    marginBottom: 10,
   },
-  primaryHudBox: {
-    backgroundColor: '#0B101B',
-    borderRadius: 18,
-    paddingVertical: 18,
-    paddingHorizontal: 16,
+  progressTrack: {
+    height: 6,
+    backgroundColor: '#1A2130',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  heroPaceCard: {
+    backgroundColor: '#10141D',
+    borderRadius: 26,
+    padding: 18,
+    borderWidth: 2,
+    marginBottom: 12,
     alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: '#1E293B',
   },
-  hudLabel: {
+  heroTopRow: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  heroLabel: {
     color: '#94A3B8',
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 0.8,
   },
-  giantPaceValue: {
-    fontSize: 64,
+  zoneStatusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  zoneStatusBadgeText: {
+    color: '#07090D',
+    fontSize: 10,
     fontWeight: '900',
+  },
+  heroPaceValue: {
+    fontSize: 70,
+    fontWeight: '900',
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -1,
     marginVertical: 4,
+  },
+  heroFooterRow: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 6,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#1E2534',
+  },
+  heroFooterText: {
+    color: '#CBD5E1',
+    fontSize: 13,
+    fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
-  paceStatusSub: {
-    color: '#CBD5E1',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  secondaryHudRow: {
+  bentoRow: {
     flexDirection: 'row',
     gap: 12,
+    marginBottom: 12,
   },
-  halfHudBox: {
+  metricCard: {
     flex: 1,
-    backgroundColor: '#0B101B',
-    borderRadius: 16,
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    alignItems: 'center',
+    backgroundColor: '#10141D',
+    borderRadius: 22,
+    padding: 16,
     borderWidth: 1,
-    borderColor: '#1E293B',
+    borderColor: '#1E2534',
   },
-  hugeMetricValue: {
-    color: '#F8FAFC',
-    fontSize: 40,
-    fontWeight: '900',
-    marginVertical: 4,
-    fontVariant: ['tabular-nums'],
+  metricCardDanger: {
+    borderColor: '#FF3B5C',
+    backgroundColor: '#1F0E14',
   },
-  mediumMetricValue: {
-    color: '#F8FAFC',
-    fontSize: 28,
+  metricLabel: {
+    color: '#94A3B8',
+    fontSize: 10,
     fontWeight: '800',
-    marginTop: 6,
+    letterSpacing: 0.6,
+    marginBottom: 6,
+  },
+  metricValRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 5,
+  },
+  metricBigVal: {
+    color: '#F8FAFC',
+    fontSize: 36,
+    fontWeight: '900',
     fontVariant: ['tabular-nums'],
   },
-  unitSubText: {
+  metricUnit: {
     color: '#64748B',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
   },
   controlsCard: {
-    backgroundColor: '#111722',
-    borderRadius: 16,
+    backgroundColor: '#10141D',
+    borderRadius: 20,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#1E293B',
-    marginBottom: 14,
+    borderColor: '#1E2534',
+    gap: 12,
+    marginBottom: 12,
   },
   controlRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
   },
-  controlTitle: {
-    color: '#F8FAFC',
-    fontSize: 14,
+  controlLabel: {
+    color: '#CBD5E1',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  controlActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  miniStepBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: '#1A2130',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  miniStepText: {
+    color: '#00F0FF',
+    fontSize: 16,
     fontWeight: '800',
   },
-  controlSub: {
-    color: '#94A3B8',
-    fontSize: 11,
-    marginTop: 2,
-  },
-  toggleBtn: {
-    backgroundColor: '#1E293B',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+  pillToggle: {
+    backgroundColor: '#1A2130',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 10,
   },
-  toggleBtnOn: {
-    backgroundColor: '#00F5D4',
+  pillToggleVolt: {
+    backgroundColor: '#00F0FF',
   },
-  toggleBtnText: {
-    color: '#94A3B8',
-    fontSize: 12,
-    fontWeight: '900',
+  pillToggleAmber: {
+    backgroundColor: '#FFB020',
   },
-  toggleBtnTextOn: {
-    color: '#04120B',
+  pillToggleText: {
+    color: '#CBD5E1',
+    fontSize: 11,
+    fontWeight: '800',
   },
-  bpmSelectorRow: {
+  textDark: {
+    color: '#07090D',
+  },
+  testRow: {
     flexDirection: 'row',
     gap: 8,
-    marginBottom: 12,
-  },
-  pillChoice: {
-    flex: 1,
-    backgroundColor: '#090D14',
-    paddingVertical: 8,
-    borderRadius: 8,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#1E293B',
-  },
-  pillChoiceActive: {
-    borderColor: '#00F5D4',
-    backgroundColor: '#062825',
-  },
-  pillChoiceText: {
-    color: '#94A3B8',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  pillChoiceTextActive: {
-    color: '#00F5D4',
-  },
-  fallbackGoalBtn: {
-    backgroundColor: '#1E293B',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  fallbackGoalBtnActive: {
-    backgroundColor: '#422006',
-    borderWidth: 1,
-    borderColor: '#FACC15',
-  },
-  fallbackGoalBtnText: {
-    color: '#FDE047',
-    fontSize: 11,
-    fontWeight: '800',
-    textAlign: 'center',
-  },
-  testPanel: {
-    backgroundColor: '#0B101B',
-    borderRadius: 14,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#1E293B',
     marginBottom: 16,
   },
-  testPanelTitle: {
-    color: '#64748B',
-    fontSize: 10,
-    fontWeight: '800',
-    marginBottom: 8,
-  },
-  testBtnsRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  testChip: {
+  testBtn: {
     flex: 1,
-    backgroundColor: '#162032',
-    paddingVertical: 9,
-    paddingHorizontal: 6,
-    borderRadius: 8,
+    backgroundColor: '#10141D',
+    borderWidth: 1,
+    borderColor: '#1E2534',
+    paddingVertical: 10,
+    borderRadius: 12,
     alignItems: 'center',
   },
-  testChipActive: {
-    backgroundColor: '#0284C7',
+  testBtnActive: {
+    borderColor: '#00F0FF',
   },
-  testChipText: {
-    color: '#E2E8F0',
+  testBtnText: {
+    color: '#94A3B8',
     fontSize: 11,
     fontWeight: '700',
-    textAlign: 'center',
   },
-  giantStartBtn: {
-    backgroundColor: '#00E676',
+  giantVoltStartBtn: {
+    backgroundColor: '#D2FF00',
+    borderRadius: 20,
     paddingVertical: 18,
-    borderRadius: 16,
     alignItems: 'center',
   },
-  giantStartBtnText: {
-    color: '#04120B',
-    fontSize: 16,
+  giantVoltStartText: {
+    color: '#07090D',
+    fontSize: 17,
     fontWeight: '900',
     letterSpacing: 0.6,
   },
@@ -656,26 +623,28 @@ const styles = StyleSheet.create({
   },
   pauseBtn: {
     flex: 1,
-    backgroundColor: '#FFB800',
+    backgroundColor: '#1A2130',
+    borderRadius: 18,
     paddingVertical: 18,
-    borderRadius: 16,
     alignItems: 'center',
   },
   pauseBtnText: {
-    color: '#1A1200',
-    fontSize: 16,
+    color: '#F8FAFC',
+    fontSize: 14,
     fontWeight: '900',
   },
-  stopBtn: {
+  holdStopBtn: {
     flex: 1,
-    backgroundColor: '#FF2A6D',
+    backgroundColor: '#2A1219',
+    borderWidth: 1,
+    borderColor: '#FF3B5C',
+    borderRadius: 18,
     paddingVertical: 18,
-    borderRadius: 16,
     alignItems: 'center',
   },
-  stopBtnText: {
-    color: '#FFFFFF',
-    fontSize: 16,
+  holdStopBtnText: {
+    color: '#FF3B5C',
+    fontSize: 13,
     fontWeight: '900',
   },
 });
