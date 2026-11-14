@@ -4,13 +4,10 @@ import * as TaskManager from 'expo-task-manager';
 import { audioCoach } from '../services/audioCoach';
 
 /**
- * Module 2: Background GPS, Rolling Pace & Workout Segment State Machine
- * - Xin quyền GPS chạy nền (Always) để không bị ngắt khi khóa màn hình iPhone bỏ vào túi chạy.
- * - Tính toán Rolling Pace (Trung bình trượt trên cửa sổ 20 giây hoặc 90m gần nhất) để loại bỏ nhiễu GPS.
- * - Tự động chuyển chặng bài tập (Warm-up -> Main Set / Interval / Tempo -> Cool-down).
- * - Giám sát liên tục 2 điều kiện an toàn:
- *   1) HR >= 178 bpm kéo dài quá 30 giây => Cảnh báo đỏ ưu tiên cao nhất.
- *   2) Rolling Pace lệch khỏi mục tiêu chặng > ±10 giây/km liên tục 20 giây => Nhắc điều chỉnh tốc độ (Cooldown 45s).
+ * Module 2 (Đồng bộ ngưỡng Lactate 175 bpm @ 7'41" & Format PT Zone-Pace-Tim-Action):
+ * - Tính thời gian theo Date.now() chuẩn xác ngay cả khi khóa màn hình.
+ * - Truyền đầy đủ Pace và Heart Rate hiện tại vào từng câu nhắc để đọc đúng cấu trúc:
+ *   "Quá nhanh / Quá chậm / Quá ngưỡng, Zone X, Pace..., Tim..., [Action]!"
  */
 
 export const BACKGROUND_LOCATION_TASK = 'SUB60_BACKGROUND_LOCATION_TASK';
@@ -45,17 +42,17 @@ interface GpsSample {
   cumulativeDistanceM: number;
 }
 
+interface HrSample {
+  bpm: number;
+  timestamp: number;
+}
+
 type LocationListener = (locations: Location.LocationObject[]) => void;
 const backgroundListeners = new Set<LocationListener>();
 
-/**
- * Định nghĩa TaskManager ở top-level scope theo yêu cầu bắt buộc của Expo Location trên iOS
- */
 if (!TaskManager.isTaskDefined(BACKGROUND_LOCATION_TASK)) {
   TaskManager.defineTask(BACKGROUND_LOCATION_TASK, ({ data, error }) => {
-    if (error) {
-      return;
-    }
+    if (error) return;
     const payload = data as { locations?: Location.LocationObject[] } | undefined;
     if (payload?.locations && payload.locations.length > 0) {
       backgroundListeners.forEach((listener) => listener(payload.locations!));
@@ -63,9 +60,6 @@ if (!TaskManager.isTaskDefined(BACKGROUND_LOCATION_TASK)) {
   });
 }
 
-/**
- * Công thức Haversine tính khoảng cách (mét) giữa 2 tọa độ GPS
- */
 function calculateHaversineMeters(
   lat1: number,
   lon1: number,
@@ -120,7 +114,7 @@ export function useRunningPacer(
   const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
   const [segmentProgressMeters, setSegmentProgressMeters] = useState(0);
   const [segmentElapsedSeconds, setSegmentElapsedSeconds] = useState(0);
-  const [splitIntervalMeters, setSplitIntervalMeters] = useState<SplitAnnouncementInterval>(1000);
+  const [splitIntervalMeters, setSplitIntervalMeters] = useState<SplitAnnouncementInterval>(500);
   const [isMetronomeOn, setIsMetronomeOn] = useState(false);
   const [metronomeBpm, setMetronomeBpm] = useState(172);
   const [isFallbackSub65Active, setIsFallbackSub65Active] = useState(false);
@@ -129,21 +123,36 @@ export function useRunningPacer(
   const [gpsSimulatedPaceSec, setGpsSimulatedPaceSec] = useState<number | null>(null);
   const [permissionError, setPermissionError] = useState<string | null>(null);
 
-  // Refs dùng trong vòng lặp 1 giây và callback GPS chạy nền
   const gpsHistoryRef = useRef<GpsSample[]>([]);
+  const hrHistoryRef = useRef<HrSample[]>([]);
+  const paceTrendSamplesRef = useRef<number[]>([]);
+  const watchSubRef = useRef<Location.LocationSubscription | null>(null);
+
+  const runStartTimeMsRef = useRef<number>(0);
+  const totalPausedMsRef = useRef<number>(0);
+  const pauseStartedMsRef = useRef<number | null>(null);
+  const lastSimTickMsRef = useRef<number>(0);
+
   const totalDistanceRef = useRef(0);
   const elapsedSecondsRef = useRef(0);
   const segmentIndexRef = useRef(0);
   const segmentStartDistanceRef = useRef(0);
-  const segmentStartTimeRef = useRef(0);
+  const segmentStartTimeSecRef = useRef(0);
   const lastAnnouncedSplitIndexRef = useRef(0);
-  const highHrDurationSecRef = useRef(0);
-  const paceDeviationDurationSecRef = useRef(0);
+
+  const highHrStartMsRef = useRef<number | null>(null);
+  const sprintSpikeStartMsRef = useRef<number | null>(null);
+  const paceDeviationStartMsRef = useRef<number | null>(null);
   const lastDeviationDirectionRef = useRef<'TOO_FAST' | 'TOO_SLOW' | null>(null);
+  const wasOutOfZoneRef = useRef<boolean>(false);
+  const inZoneRecoveryStartMsRef = useRef<number | null>(null);
+  const lastPaceDriftCheckSecRef = useRef<number>(0);
+
   const isPausedRef = useRef(false);
   const isRunningRef = useRef(false);
   const heartRateRef = useRef<number | null>(null);
   const rollingPaceRef = useRef<number | null>(null);
+  const shortPace6sRef = useRef<number | null>(null);
   const isFallbackSub65Ref = useRef(false);
   const gpsSimPaceRef = useRef<number | null>(null);
 
@@ -162,32 +171,32 @@ export function useRunningPacer(
   const currentSegment: WorkoutSegment =
     workout.segments[currentSegmentIndex] || workout.segments[workout.segments.length - 1];
 
-  /**
-   * Lấy khoảng Pace mục tiêu của chặng hiện tại (hỗ trợ nút chuyển nhanh sang Phương án dự phòng Sub 65: 6'25"-6'30"/km)
-   */
   const getActiveTargetPaceRange = useCallback((seg: WorkoutSegment): { minSec: number; maxSec: number } => {
     if (isFallbackSub65Ref.current && (seg.type === 'main' || seg.type === 'race_split')) {
-      return { minSec: 385, maxSec: 390 }; // 6'25" - 6'30"/km
+      return { minSec: 385, maxSec: 390 }; // Phương án dự phòng Sub 65 (6'25"-6'30")
     }
     return { minSec: seg.targetPaceMinSec, maxSec: seg.targetPaceMaxSec };
   }, []);
 
-  /**
-   * Thuật toán tính Rolling Pace (Trung bình trượt cửa sổ 20 giây hoặc 90 mét gần nhất)
-   * Loại bỏ hoàn toàn hiện tượng GPS tức thời nhảy giật cục.
-   */
-  const computeRollingPace = useCallback((samples: GpsSample[]): number | null => {
+  const getActualElapsedSeconds = useCallback((nowMs: number): number => {
+    if (!runStartTimeMsRef.current) return 0;
+    const pausedMs =
+      totalPausedMsRef.current +
+      (pauseStartedMsRef.current ? nowMs - pauseStartedMsRef.current : 0);
+    return Math.max(0, Math.floor((nowMs - runStartTimeMsRef.current - pausedMs) / 1000));
+  }, []);
+
+  const computeWindowPace = useCallback((samples: GpsSample[], windowSec: number, minMeters: number): number | null => {
     if (samples.length < 2) return null;
     const latest = samples[samples.length - 1];
 
-    // Tìm điểm neo cách hiện tại khoảng 18-20 giây hoặc tối소 80-90 mét
     let anchor = samples[0];
     for (let i = samples.length - 2; i >= 0; i--) {
       const candidate = samples[i];
       const dtSec = (latest.timestamp - candidate.timestamp) / 1000;
       const dMeters = latest.cumulativeDistanceM - candidate.cumulativeDistanceM;
       anchor = candidate;
-      if (dtSec >= 18 || dMeters >= 90) {
+      if (dtSec >= windowSec || dMeters >= minMeters) {
         break;
       }
     }
@@ -195,17 +204,13 @@ export function useRunningPacer(
     const deltaMeters = latest.cumulativeDistanceM - anchor.cumulativeDistanceM;
     const deltaSeconds = (latest.timestamp - anchor.timestamp) / 1000;
 
-    if (deltaMeters < 12 || deltaSeconds < 4) {
+    if (deltaMeters < 8 || deltaSeconds < 3) {
       return null;
     }
 
-    const paceSecPerKm = (deltaSeconds / deltaMeters) * 1000;
-    return Math.round(paceSecPerKm);
+    return Math.round((deltaSeconds / deltaMeters) * 1000);
   }, []);
 
-  /**
-   * Kiểm tra và chuyển chặng tự động (Warm-up -> Main Set / Interval -> Cool-down)
-   */
   const evaluateSegmentProgression = useCallback(
     (currentTotalMeters: number, currentElapsedSec: number) => {
       const idx = segmentIndexRef.current;
@@ -213,7 +218,7 @@ export function useRunningPacer(
       if (!seg) return;
 
       const distInSeg = currentTotalMeters - segmentStartDistanceRef.current;
-      const timeInSeg = currentElapsedSec - segmentStartTimeRef.current;
+      const timeInSeg = currentElapsedSec - segmentStartTimeSecRef.current;
 
       setSegmentProgressMeters(Math.max(0, distInSeg));
       setSegmentElapsedSeconds(Math.max(0, timeInSeg));
@@ -228,7 +233,9 @@ export function useRunningPacer(
         if (nextIdx < workout.segments.length) {
           segmentIndexRef.current = nextIdx;
           segmentStartDistanceRef.current = currentTotalMeters;
-          segmentStartTimeRef.current = currentElapsedSec;
+          segmentStartTimeSecRef.current = currentElapsedSec;
+          wasOutOfZoneRef.current = false;
+          inZoneRecoveryStartMsRef.current = null;
           setCurrentSegmentIndex(nextIdx);
           setSegmentProgressMeters(0);
           setSegmentElapsedSeconds(0);
@@ -236,9 +243,8 @@ export function useRunningPacer(
           const nextSeg = workout.segments[nextIdx];
           audioCoach.announceSegmentTransition(nextSeg.voiceIntro);
         } else {
-          // Hoàn thành toàn bộ các chặng trong giáo án buổi chạy
           audioCoach.announceSegmentTransition(
-            `Chúc mừng bạn đã hoàn thành trọn vẹn bài tập ${workout.title}. Hãy đi bộ thả lỏng và giãn cơ.`
+            `Hoàn thành bài tập ${workout.title}. Đi bộ thả lỏng nhé.`
           );
         }
       }
@@ -246,19 +252,155 @@ export function useRunningPacer(
     [workout]
   );
 
-  /**
-   * Xử lý tọa độ GPS mới nhận từ Background Location Task
-   */
+  const evaluatePtCoaching = useCallback(
+    (nowMs: number, currentElapsedSec: number) => {
+      const activeSeg = workout.segments[segmentIndexRef.current];
+      const hr = heartRateRef.current;
+      const currentPaceForCue = rollingPaceRef.current || shortPace6sRef.current;
+
+      // 1. GIÁM SÁT TIM MẠCH (Ngưỡng Lactate 175 bpm / Giới hạn đỏ 178 bpm)
+      if (hr !== null) {
+        const lastHr = hrHistoryRef.current[hrHistoryRef.current.length - 1];
+        if (!lastHr || nowMs - lastHr.timestamp >= 900) {
+          hrHistoryRef.current.push({ bpm: hr, timestamp: nowMs });
+          if (hrHistoryRef.current.length > 14) {
+            hrHistoryRef.current.shift();
+          }
+        }
+
+        const dynamicHardLimit = audioCoach.getHardLimitHr();
+        const dynamicEarlyWarn = audioCoach.getEarlyWarningHr();
+
+        if (hr >= dynamicHardLimit) {
+          if (!highHrStartMsRef.current) {
+            highHrStartMsRef.current = nowMs;
+          }
+          if (nowMs - highHrStartMsRef.current >= 8000) {
+            setIsHrDangerActive(true);
+            wasOutOfZoneRef.current = true;
+            inZoneRecoveryStartMsRef.current = null;
+            audioCoach.announceCriticalHeartRate(hr, currentPaceForCue);
+          }
+        } else {
+          highHrStartMsRef.current = null;
+          setIsHrDangerActive(false);
+
+          const hrSamples = hrHistoryRef.current;
+          if (hrSamples.length >= 6 && activeSeg) {
+            const oldest = hrSamples[0];
+            const deltaHr = hr - oldest.bpm;
+            // Linh hoạt theo ngưỡng Lactate đang cài (mặc định 175 => cảnh báo sớm từ 170)
+            const isNearLactateLimit = hr >= dynamicEarlyWarn && deltaHr >= 4;
+            const isApproachingSegCeiling = hr >= activeSeg.maxHrBpm - 5 && deltaHr >= 5;
+
+            if (isNearLactateLimit || isApproachingSegCeiling) {
+              wasOutOfZoneRef.current = true;
+              inZoneRecoveryStartMsRef.current = null;
+              audioCoach.announceHrRisingTrend(hr, currentPaceForCue, isNearLactateLimit);
+            }
+          }
+        }
+      }
+
+      // 2. GIÁM SÁT XU HƯỚNG PACE & XÁC NHẬN SỬA ĐÚNG
+      if (activeSeg && activeSeg.type !== 'interval_rest') {
+        const { minSec, maxSec } = getActiveTargetPaceRange(activeSeg);
+        const fast6s = shortPace6sRef.current;
+        const rolling = rollingPaceRef.current;
+
+        if (fast6s && fast6s < minSec - 15) {
+          if (!sprintSpikeStartMsRef.current) {
+            sprintSpikeStartMsRef.current = nowMs;
+          }
+          if (nowMs - sprintSpikeStartMsRef.current >= 5000) {
+            wasOutOfZoneRef.current = true;
+            inZoneRecoveryStartMsRef.current = null;
+            audioCoach.announcePaceTrend('SPIKE_FAST', fast6s, hr);
+            sprintSpikeStartMsRef.current = null;
+          }
+        } else {
+          sprintSpikeStartMsRef.current = null;
+        }
+
+        if (rolling && currentElapsedSec - lastPaceDriftCheckSecRef.current >= 3) {
+          lastPaceDriftCheckSecRef.current = currentElapsedSec;
+          paceTrendSamplesRef.current.push(rolling);
+          if (paceTrendSamplesRef.current.length > 4) {
+            paceTrendSamplesRef.current.shift();
+          }
+          const pts = paceTrendSamplesRef.current;
+          if (pts.length === 4) {
+            const isDriftingSlower =
+              pts[1] > pts[0] + 3 && pts[2] > pts[1] + 3 && pts[3] > maxSec - 4;
+            if (isDriftingSlower) {
+              wasOutOfZoneRef.current = true;
+              inZoneRecoveryStartMsRef.current = null;
+              audioCoach.announcePaceTrend('DRIFT_SLOW', rolling, hr);
+              paceTrendSamplesRef.current = [];
+            }
+          }
+        }
+
+        if (rolling) {
+          if (rolling < minSec - 10) {
+            setPaceZoneStatus('TOO_FAST');
+            inZoneRecoveryStartMsRef.current = null;
+            if (lastDeviationDirectionRef.current !== 'TOO_FAST') {
+              lastDeviationDirectionRef.current = 'TOO_FAST';
+              paceDeviationStartMsRef.current = nowMs;
+            }
+            if (paceDeviationStartMsRef.current && nowMs - paceDeviationStartMsRef.current >= 10000) {
+              wasOutOfZoneRef.current = true;
+              audioCoach.announcePaceDeviation('TOO_FAST', rolling, hr, minSec, maxSec);
+              paceDeviationStartMsRef.current = nowMs;
+            }
+          } else if (rolling > maxSec + 10) {
+            setPaceZoneStatus('TOO_SLOW');
+            inZoneRecoveryStartMsRef.current = null;
+            if (lastDeviationDirectionRef.current !== 'TOO_SLOW') {
+              lastDeviationDirectionRef.current = 'TOO_SLOW';
+              paceDeviationStartMsRef.current = nowMs;
+            }
+            if (paceDeviationStartMsRef.current && nowMs - paceDeviationStartMsRef.current >= 10000) {
+              wasOutOfZoneRef.current = true;
+              audioCoach.announcePaceDeviation('TOO_SLOW', rolling, hr, minSec, maxSec);
+              paceDeviationStartMsRef.current = nowMs;
+            }
+          } else {
+            setPaceZoneStatus('IN_ZONE');
+            lastDeviationDirectionRef.current = null;
+            paceDeviationStartMsRef.current = null;
+
+            if (wasOutOfZoneRef.current && (!hr || hr < activeSeg.maxHrBpm)) {
+              if (!inZoneRecoveryStartMsRef.current) {
+                inZoneRecoveryStartMsRef.current = nowMs;
+              } else if (nowMs - inZoneRecoveryStartMsRef.current >= 5000) {
+                wasOutOfZoneRef.current = false;
+                inZoneRecoveryStartMsRef.current = null;
+                audioCoach.announceBackInZone(rolling, hr);
+              }
+            }
+          }
+        }
+      }
+    },
+    [getActiveTargetPaceRange, hardLimitHrBpm, workout]
+  );
+
   const handleLocationsUpdate = useCallback(
     (locations: Location.LocationObject[]) => {
       if (!isRunningRef.current || isPausedRef.current) return;
 
+      const nowMs = Date.now();
+      const actualElapsed = getActualElapsedSeconds(nowMs);
+      elapsedSecondsRef.current = actualElapsed;
+      setElapsedSeconds(actualElapsed);
+
       for (const loc of locations) {
         const { latitude, longitude, accuracy } = loc.coords;
-        const timestamp = loc.timestamp || Date.now();
+        const timestamp = loc.timestamp || nowMs;
 
-        // Lọc bỏ các điểm GPS nhiễu có sai số ngang > 25m
-        if (accuracy !== null && accuracy > 25) {
+        if (accuracy !== null && accuracy > 50) {
           continue;
         }
 
@@ -274,6 +416,10 @@ export function useRunningPacer(
         }
 
         const prev = history[history.length - 1];
+        if (timestamp <= prev.timestamp) {
+          continue;
+        }
+
         const dtSec = (timestamp - prev.timestamp) / 1000;
         if (dtSec <= 0.4) continue;
 
@@ -284,7 +430,6 @@ export function useRunningPacer(
           longitude
         );
 
-        // Chống nhảy tọa độ ảo khi đứng yên (< 1.2m) hoặc nhảy vọt bất khả thi (> 7.5 m/s ~ pace 2'13"/km)
         const instantSpeedMps = stepMeters / dtSec;
         if (stepMeters < 1.2 || instantSpeedMps > 7.5) {
           continue;
@@ -301,66 +446,71 @@ export function useRunningPacer(
           cumulativeDistanceM: newTotalMeters,
         });
 
-        // Giữ tối đa 40 mẫu gần nhất trong bộ đệm
         if (history.length > 40) {
           history.shift();
         }
 
-        const rolling = computeRollingPace(history);
+        const short6s = computeWindowPace(history, 6, 25);
+        if (short6s) shortPace6sRef.current = short6s;
+
+        const rolling = computeWindowPace(history, 16, 80);
         if (rolling) {
           rollingPaceRef.current = rolling;
           setRollingPaceSecPerKm(rolling);
         }
 
-        if (elapsedSecondsRef.current > 10 && newTotalMeters > 30) {
-          const avg = Math.round((elapsedSecondsRef.current / newTotalMeters) * 1000);
-          setAveragePaceSecPerKm(avg);
+        if (actualElapsed > 8 && newTotalMeters > 20) {
+          setAveragePaceSecPerKm(Math.round((actualElapsed / newTotalMeters) * 1000));
         }
 
-        // Kiểm tra cột mốc đọc định kỳ mỗi 500m hoặc 1000m
         const currentSplitIndex = Math.floor(newTotalMeters / splitIntervalMeters);
         if (currentSplitIndex > lastAnnouncedSplitIndexRef.current && currentSplitIndex > 0) {
           lastAnnouncedSplitIndexRef.current = currentSplitIndex;
           const milestoneKm = (currentSplitIndex * splitIntervalMeters) / 1000;
           const currentAvgPace =
-            elapsedSecondsRef.current > 0
-              ? Math.round((elapsedSecondsRef.current / newTotalMeters) * 1000)
-              : rolling || 360;
+            actualElapsed > 0
+              ? Math.round((actualElapsed / newTotalMeters) * 1000)
+              : rolling || 461;
           audioCoach.announceDistanceMilestone(milestoneKm, currentAvgPace, heartRateRef.current);
         }
 
-        evaluateSegmentProgression(newTotalMeters, elapsedSecondsRef.current);
+        evaluateSegmentProgression(newTotalMeters, actualElapsed);
       }
+
+      evaluatePtCoaching(nowMs, actualElapsed);
     },
-    [computeRollingPace, evaluateSegmentProgression, splitIntervalMeters]
+    [
+      computeWindowPace,
+      evaluatePtCoaching,
+      evaluateSegmentProgression,
+      getActualElapsedSeconds,
+      splitIntervalMeters,
+    ]
   );
 
-  /**
-   * Vòng lặp đồng hồ 1 giây:
-   * - Cập nhật thời gian chạy & mô phỏng GPS (nếu bật chế độ Test trong nhà)
-   * - Kiểm tra Ngưỡng an toàn tim mạch (HR >= 178 bpm liên tục 30 giây)
-   * - Kiểm tra Độ lệch Rolling Pace (±10s/km liên tục 20 giây)
-   */
   useEffect(() => {
     if (!isRunning) return;
 
     const timer = setInterval(() => {
       if (isPausedRef.current) return;
 
-      const nextElapsed = elapsedSecondsRef.current + 1;
-      elapsedSecondsRef.current = nextElapsed;
-      setElapsedSeconds(nextElapsed);
+      const nowMs = Date.now();
+      const actualElapsed = getActualElapsedSeconds(nowMs);
+      elapsedSecondsRef.current = actualElapsed;
+      setElapsedSeconds(actualElapsed);
 
-      // Nếu đang bật chế độ giả lập Pace (để test tai nghe trong nhà trên Windows/iPhone)
       if (gpsSimPaceRef.current && gpsSimPaceRef.current > 0) {
+        const dtSimSec = lastSimTickMsRef.current ? (nowMs - lastSimTickMsRef.current) / 1000 : 1;
+        lastSimTickMsRef.current = nowMs;
         const metersPerSec = 1000 / gpsSimPaceRef.current;
-        const newTotal = totalDistanceRef.current + metersPerSec;
+        const newTotal = totalDistanceRef.current + metersPerSec * dtSimSec;
         totalDistanceRef.current = newTotal;
         setTotalDistanceMeters(newTotal);
         rollingPaceRef.current = gpsSimPaceRef.current;
+        shortPace6sRef.current = gpsSimPaceRef.current;
         setRollingPaceSecPerKm(gpsSimPaceRef.current);
 
-        const avg = Math.round((nextElapsed / newTotal) * 1000);
+        const avg = Math.round((actualElapsed / newTotal) * 1000);
         setAveragePaceSecPerKm(avg);
 
         const currentSplitIndex = Math.floor(newTotal / splitIntervalMeters);
@@ -369,79 +519,23 @@ export function useRunningPacer(
           const milestoneKm = (currentSplitIndex * splitIntervalMeters) / 1000;
           audioCoach.announceDistanceMilestone(milestoneKm, avg, heartRateRef.current);
         }
-      }
-
-      evaluateSegmentProgression(totalDistanceRef.current, nextElapsed);
-
-      // 1. KIỂM TRA CẢNH BÁO ĐỎ TIM MẠCH (Hard Limit: HR >= 178 bpm kéo dài >= 30 giây)
-      const hr = heartRateRef.current;
-      if (hr !== null && hr >= hardLimitHrBpm) {
-        highHrDurationSecRef.current += 1;
-        if (highHrDurationSecRef.current >= 30) {
-          setIsHrDangerActive(true);
-          audioCoach.announceCriticalHeartRate(hr);
-        }
       } else {
-        highHrDurationSecRef.current = 0;
-        setIsHrDangerActive(false);
+        lastSimTickMsRef.current = nowMs;
       }
 
-      // 2. KIỂM TRA CẢNH BÁO LỆCH PACE (> ±10 giây/km liên tục trong 20 giây)
-      const activeSeg = workout.segments[segmentIndexRef.current];
-      const rolling = rollingPaceRef.current;
-
-      if (activeSeg && rolling && activeSeg.type !== 'interval_rest') {
-        const { minSec, maxSec } = getActiveTargetPaceRange(activeSeg);
-        const fastThreshold = minSec - 10; // Nhanh hơn mục tiêu quá 10 giây/km
-        const slowThreshold = maxSec + 10; // Chậm hơn mục tiêu quá 10 giây/km
-
-        if (rolling < fastThreshold) {
-          setPaceZoneStatus('TOO_FAST');
-          if (lastDeviationDirectionRef.current === 'TOO_FAST') {
-            paceDeviationDurationSecRef.current += 1;
-          } else {
-            lastDeviationDirectionRef.current = 'TOO_FAST';
-            paceDeviationDurationSecRef.current = 1;
-          }
-
-          if (paceDeviationDurationSecRef.current >= 20) {
-            audioCoach.announcePaceDeviation('TOO_FAST', rolling, minSec, maxSec);
-            paceDeviationDurationSecRef.current = 0;
-          }
-        } else if (rolling > slowThreshold) {
-          setPaceZoneStatus('TOO_SLOW');
-          if (lastDeviationDirectionRef.current === 'TOO_SLOW') {
-            paceDeviationDurationSecRef.current += 1;
-          } else {
-            lastDeviationDirectionRef.current = 'TOO_SLOW';
-            paceDeviationDurationSecRef.current = 1;
-          }
-
-          if (paceDeviationDurationSecRef.current >= 20) {
-            audioCoach.announcePaceDeviation('TOO_SLOW', rolling, minSec, maxSec);
-            paceDeviationDurationSecRef.current = 0;
-          }
-        } else {
-          setPaceZoneStatus('IN_ZONE');
-          lastDeviationDirectionRef.current = null;
-          paceDeviationDurationSecRef.current = 0;
-        }
-      }
+      evaluateSegmentProgression(totalDistanceRef.current, actualElapsed);
+      evaluatePtCoaching(nowMs, actualElapsed);
     }, 1000);
 
     return () => clearInterval(timer);
   }, [
     isRunning,
-    hardLimitHrBpm,
-    workout,
     splitIntervalMeters,
+    getActualElapsedSeconds,
     evaluateSegmentProgression,
-    getActiveTargetPaceRange,
+    evaluatePtCoaching,
   ]);
 
-  /**
-   * Bắt đầu buổi chạy: Xin quyền Location Always & khởi chạy Background Location Updates
-   */
   const startRun = useCallback(async () => {
     setPermissionError(null);
     await audioCoach.initAudioSession();
@@ -455,20 +549,32 @@ export function useRunningPacer(
     const bgPerm = await Location.requestBackgroundPermissionsAsync();
     if (bgPerm.status !== 'granted') {
       setPermissionError(
-        'Hãy chọn "Luôn luôn (Always)" trong Cài đặt Vị trí iOS để GPS không bị ngắt khi khóa màn hình.'
+        'Hãy chọn "Luôn luôn (Always)" trong Cài đặt Vị trí iOS để GPS hoạt động cả khi khóa màn hình.'
       );
     }
 
-    // Reset các bộ đếm cho buổi chạy mới
+    const nowMs = Date.now();
+    runStartTimeMsRef.current = nowMs;
+    totalPausedMsRef.current = 0;
+    pauseStartedMsRef.current = null;
+    lastSimTickMsRef.current = nowMs;
+
     gpsHistoryRef.current = [];
+    hrHistoryRef.current = [];
+    paceTrendSamplesRef.current = [];
     totalDistanceRef.current = 0;
     elapsedSecondsRef.current = 0;
     segmentIndexRef.current = 0;
     segmentStartDistanceRef.current = 0;
-    segmentStartTimeRef.current = 0;
+    segmentStartTimeSecRef.current = 0;
     lastAnnouncedSplitIndexRef.current = 0;
-    highHrDurationSecRef.current = 0;
-    paceDeviationDurationSecRef.current = 0;
+    highHrStartMsRef.current = null;
+    sprintSpikeStartMsRef.current = null;
+    paceDeviationStartMsRef.current = null;
+    lastDeviationDirectionRef.current = null;
+    wasOutOfZoneRef.current = false;
+    inZoneRecoveryStartMsRef.current = null;
+    lastPaceDriftCheckSecRef.current = 0;
 
     setTotalDistanceMeters(0);
     setElapsedSeconds(0);
@@ -485,21 +591,41 @@ export function useRunningPacer(
     backgroundListeners.add(handleLocationsUpdate);
 
     try {
-      const hasStarted = await Location.hasStartedLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
-      if (hasStarted) {
-        await Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
+      if (watchSubRef.current) {
+        watchSubRef.current.remove();
       }
+      watchSubRef.current = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.BestForNavigation,
+          timeInterval: 1500,
+          distanceInterval: 2,
+        },
+        (location) => {
+          handleLocationsUpdate([location]);
+        }
+      );
+    } catch (fgErr: any) {
+      setPermissionError(`Lỗi GPS: ${fgErr?.message || 'Chưa cấp quyền vị trí'}`);
+    }
 
-      await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK, {
-        accuracy: Location.Accuracy.BestForNavigation,
-        timeInterval: 2000,
-        distanceInterval: 3,
-        showsBackgroundLocationIndicator: true,
-        pausesUpdatesAutomatically: false,
-        activityType: Location.ActivityType.Fitness,
-      });
-    } catch {
-      // Nếu chạy trong môi trường mô phỏng hoặc chưa build native, vẫn cho phép test qua GPS Simulator
+    if (bgPerm.status === 'granted') {
+      try {
+        const hasStarted = await Location.hasStartedLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
+        if (hasStarted) {
+          await Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
+        }
+
+        await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK, {
+          accuracy: Location.Accuracy.BestForNavigation,
+          timeInterval: 2000,
+          distanceInterval: 3,
+          showsBackgroundLocationIndicator: true,
+          pausesUpdatesAutomatically: false,
+          activityType: Location.ActivityType.Fitness,
+        });
+      } catch {
+        // Vẫn chạy mượt với watchPositionAsync khi mở app
+      }
     }
 
     if (workout.segments.length > 0) {
@@ -508,13 +634,22 @@ export function useRunningPacer(
   }, [handleLocationsUpdate, workout]);
 
   const togglePause = useCallback(() => {
+    const nowMs = Date.now();
     const nextPaused = !isPausedRef.current;
     isPausedRef.current = nextPaused;
     setIsPaused(nextPaused);
-    audioCoach.speak(
-      nextPaused ? 'Đã tạm dừng bài chạy.' : 'Tiếp tục bài chạy.',
-      'INFO'
-    );
+
+    if (nextPaused) {
+      pauseStartedMsRef.current = nowMs;
+      audioCoach.speak('Đã tạm dừng.', 'INFO');
+    } else {
+      if (pauseStartedMsRef.current) {
+        totalPausedMsRef.current += nowMs - pauseStartedMsRef.current;
+        pauseStartedMsRef.current = null;
+      }
+      lastSimTickMsRef.current = nowMs;
+      audioCoach.speak('Tiếp tục chạy.', 'INFO');
+    }
   }, []);
 
   const stopRun = useCallback(async () => {
@@ -525,6 +660,10 @@ export function useRunningPacer(
     setGpsSimulatedPaceSec(null);
 
     backgroundListeners.delete(handleLocationsUpdate);
+    if (watchSubRef.current) {
+      watchSubRef.current.remove();
+      watchSubRef.current = null;
+    }
 
     try {
       const hasStarted = await Location.hasStartedLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
@@ -532,12 +671,12 @@ export function useRunningPacer(
         await Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
       }
     } catch {
-      // Bỏ qua lỗi khi dừng task
+      // Bỏ qua
     }
 
     await audioCoach.stopMetronome();
     setIsMetronomeOn(false);
-    audioCoach.speak('Kết thúc buổi chạy. Dữ liệu chính thức sẽ được đồng bộ từ đồng hồ Huawei của bạn.', 'INFO');
+    audioCoach.speak('Kết thúc buổi chạy. Dữ liệu chính thức sẽ đồng bộ từ đồng hồ.', 'INFO', 'good');
   }, [handleLocationsUpdate]);
 
   const toggleMetronome = useCallback(async () => {
@@ -559,10 +698,9 @@ export function useRunningPacer(
     setIsFallbackSub65Active((prev) => {
       const next = !prev;
       audioCoach.speak(
-        next
-          ? 'Đã chuyển sang phương án an toàn Sub sáu mươi lăm phút, pace mục tiêu sáu phút hai mươi lăm đến sáu phút ba mươi giây.'
-          : 'Đã quay lại mục tiêu chính Sub sáu mươi phút.',
-        'MILESTONE'
+        next ? 'Chuyển sang mục tiêu an toàn Sub 65.' : 'Quay lại mục tiêu chính Sub 60.',
+        'MILESTONE',
+        'good'
       );
       return next;
     });
