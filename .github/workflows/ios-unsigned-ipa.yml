@@ -20,6 +20,12 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
+      - name: Run TypeScript Typecheck
+        run: npm run typecheck
+
+      - name: Run Unit Tests (43 Tests)
+        run: npm test
+
       - name: Expo Prebuild iOS Native Project
         run: npx expo prebuild --platform ios --clean
 
