@@ -28,8 +28,7 @@
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
           "location",
-          "audio",
-          "bluetooth-central"
+          "audio"
         ]
       }
     },
@@ -58,7 +57,7 @@
       [
         "react-native-ble-plx",
         {
-          "isBackgroundEnabled": true,
+          "isBackgroundEnabled": false,
           "modes": [
             "central"
           ],
