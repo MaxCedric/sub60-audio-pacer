@@ -1,147 +1,190 @@
-# Thiết Kế Kiến Trúc & Toàn Bộ Mã Nguồn: Sub60 Audio Pacer (MVP)
+# Sub60 Audio Pacer — Trợ Lý Âm Thanh Chạy Bộ 10 KM Chuyên Sâu
 
-Tài liệu kỹ thuật này tổng hợp cấu trúc dự án, mã nguồn hoàn chỉnh của cả 4 module cốt lõi và quy trình biên dịch file `.ipa` **miễn phí 100% (0 USD)** từ máy tính **Windows** để cài đặt lên **iPhone** qua [Sideloadly](https://sideloadly.io/) hoặc [AltStore](https://altstore.io/), kết nối trực tiếp với đồng hồ **HUAWEI WATCH FIT 4** qua chuẩn [Bluetooth GATT Heart Rate Service (`0x180D` / `0x2A37`)](https://www.bluetooth.com/wp-content/uploads/Files/Specification/HTML/HRS_v1.0/out/en/index-en.html).
+Ứng dụng React Native / Expo (SDK 52, React Native 0.76, TypeScript) đóng vai trò một huấn luyện viên ảo (PT Audio Coach) thời gian thực bằng tiếng Việt, kết nối trực tiếp với đồng hồ thông minh (như **HUAWEI WATCH FIT 4**) qua chuẩn **Bluetooth GATT Heart Rate Service (`0x180D`)** và định vị GPS chạy nền trên iPhone. Biên dịch file `.ipa` unsigned **miễn phí 100% (0 USD)** qua GitHub Actions để cài đặt lên iPhone bằng [Sideloadly](https://sideloadly.io/).
 
-## 1. Cấu trúc thư mục dự án (Chuẩn Expo SDK 52+)
+---
 
-Ứng dụng sử dụng kiến trúc [Expo Prebuild (Development Build)](https://docs.expo.dev/develop/development-builds/introduction/) kết hợp các thư viện gốc [react-native-ble-plx](https://dotintent.github.io/react-native-ble-plx/), [Expo Location](https://docs.expo.dev/versions/latest/sdk/location/), [Expo TaskManager](https://docs.expo.dev/versions/latest/sdk/task-manager/), [Expo Speech](https://docs.expo.dev/versions/latest/sdk/speech/) và [Expo Audio (`expo-av`)](https://docs.expo.dev/versions/latest/sdk/audio/):
+## 1. Hồ Sơ Vận Động Viên (Cập nhật 15/11/2026 từ Huawei Health)
+
+| Chỉ số / Thông tin | Giá trị thực tế | Ý nghĩa huấn luyện |
+| :--- | :--- | :--- |
+| **Cân nặng** | 73,7 kg | Cần kiểm soát lực tiếp đất bằng guồng chân cao (170–174 SPM) |
+| **VO2max** | 35 | Mức hiếu khí đang xây lại, tránh ép tim vọt Z5 quá sớm |
+| **Chỉ số chạy (RAI)** | 26,3 | Đánh giá năng lực chạy nền tảng |
+| **Ngưỡng Lactate (LTHR)** | **176 bpm @ 7'31"/km** (451 s/km) | Cột mốc phân chia các vùng tim và pace tập |
+| **Nhịp tim tối đa (HRmax)** | 195 bpm | Giới hạn trần sinh lý tuyệt đối |
+| **Ngưỡng nguy hiểm** | **190 bpm** (30s) hoặc **195 bpm** (5s) | Báo động đỏ, yêu cầu đi bộ ngay lập tức |
+| **3 km nhanh nhất** | **21:08** (7'03"/km = 423 s/km) | Cơ sở tính pace bài tập Interval |
+| **PR 5K** | 35:44 (Pace 7'09"/km) | Thành tích tốt nhất trước đây |
+| **Pace km nhanh nhất** | 6'17"/km (377 s/km) | Tiềm năng tốc độ tối đa |
+| **Chạy dài nhất** | 9,15 km (Tháng 6/2026) | Đã từng chạm ngưỡng 10 km |
+| **Khối lượng 4 tuần gần nhất** | 3–4 km/tuần | Đang mất nền, giáo án xây lại thể lực từ từ |
+| **Huyết áp nền** | 128/88 mmHg | An toàn tim mạch là ưu tiên số một |
+| **Lịch sinh hoạt tuần** | Thứ 3 đánh cầu lông; Thứ 5 và Thứ 7 chạy; Chủ Nhật tùy chọn |
+| **Ngày thi đấu (Race Day)** | **16/01/2027 — Giải chạy 10 KM** | Đếm ngược 9 tuần huấn luyện thực chiến |
+
+---
+
+## 2. Hệ Thống 3 Bậc Mục Tiêu & Công Thức Riegel
+
+Người dùng giữ **Sub 60** làm mục tiêu cao nhất, đồng thời app trang bị 3 bậc linh hoạt:
+
+1. **Sub 60 (Mục tiêu chính):** Race pace 355–360 s/km (5'55"–6'00"/km).
+2. **Sub 65 (Phương án an toàn 1):** Race pace 385–390 s/km (6'25"–6'30"/km).
+3. **Dưới 70 phút (Phương án an toàn 2):** Race pace 415–420 s/km (6'55"–7'00"/km).
+
+> **Ghi chú Riegel hiển thị trong app:**  
+> *"Quy đổi theo công thức Riegel ($T_2 = T_1 \times (D_2 / D_1)^{1.06}$), Sub 60 tương đương 3 km khoảng 16:45 và 5 km khoảng 28:50. Thành tích hiện tại: 3 km 21:08."*
+
+*Nút "Hạ mục tiêu"* ngay trên HUD cho phép chuyển bậc tức thì khi đuối sức (Sub 60 → Sub 65 → Dưới 70) kèm âm thanh động viên từ PT.
+
+---
+
+## 3. Bảng 5 Vùng Nhịp Tim Theo Joe Friel (LTHR = 176 bpm)
+
+Các vùng tim được tính động theo ngưỡng LTHR (`lactateThresholdHrBpm`), không hard-code:
+
+| Vùng (Zone) | Tên vùng tim | Khoảng nhịp tim (bpm) | Tỷ lệ % LTHR | Mục đích tập luyện |
+| :---: | :--- | :---: | :---: | :--- |
+| **Z1** | Hồi phục (Recovery) | **< 150** | < 85% | Khởi động, thả lỏng, bảo vệ cơ khớp |
+| **Z2** | Nền tảng hiếu khí (Easy) | **150 – 157** | 85% – 89% | Đốt mỡ tối ưu, xây nền sức bền mao mạch |
+| **Z3** | Aerobic cao (Steady / Tempo nhẹ) | **158 – 165** | 90% – 94% | Tăng khả năng thanh thải lactate vừa phải |
+| **Z4** | Ngưỡng Lactate (Threshold) | **166 – 175** | 95% – 99% | Nâng cao ngưỡng yếm khí |
+| **Z5** | Trên ngưỡng (VO2max / Sprint) | **≥ 176** | ≥ 100% | Tốc độ tối đa, chỉ duy trì trong các tổ ngắn |
+
+### Quy tắc Cảnh Báo Nhịp Tim An Toàn:
+1. **Nguy hiểm (Mọi loại bài tập):**
+   - HR ≥ 190 bpm liên tục 30 giây → Báo động đỏ, yêu cầu đi bộ ngay.
+   - HR ≥ 195 bpm (HRmax) dù chỉ 5 giây → Báo động đỏ lập tức.
+2. **Theo từng loại chặng bài:**
+   - `warmup`, `main` easy, `cooldown`, long run easy: Vượt trần đoạn (mặc định 157 bpm) liên tục 60 giây → nhắc chạy chậm lại.
+   - `tempo`: Vượt 176 bpm liên tục 60 giây → nhắc hãm tốc.
+   - `interval_work`, `stride`, `race_split`: **Không** nhắc nhịp tim để tránh gây phiền khi đang bứt tốc, chỉ kích hoạt khi chạm ngưỡng nguy hiểm.
+   - `interval_rest`: Không nhắc pace; chỉ phát câu *"Nhịp tim đã hạ dưới 150, sẵn sàng cho tổ tiếp theo"* khi HR < 150 bpm.
+3. Không can thiệp điều chỉnh pace theo HR trong các đoạn ngắn dưới 3 phút (do HR có độ trễ 30–90s).
+
+---
+
+## 4. Công Thức Tính Pace Tập Luyện Động
+
+Pace bài tập được tính toán tự động từ 2 thông số đo đạc thực tế của VĐV: $P_{LT}$ (`lactateThresholdPaceSecPerKm` = 451 s/km = 7'31") và $P_{3K}$ (`fastest3kSec` / 3 = 423 s/km = 7'03"):
+
+| Loại bài tập (`paceType`) | Công thức tính (s/km) | Pace thực tế hiện tại |
+| :--- | :--- | :--- |
+| **Easy / Long Run** | $P_{LT} + 45 \to P_{LT} + 90$ | **496 – 541** (8'16" – 9'01"/km) |
+| **Tăng tốc cuối Long Run** | $P_{LT} + 10 \to P_{LT} + 20$ | **461 – 471** (7'41" – 7'51"/km) |
+| **Tempo** | $P_{LT} - 5 \to P_{LT} + 5$ | **446 – 456** (7'26" – 7'36"/km) |
+| **Interval** | $P_{3K} - 10 \to P_{3K}$ | **413 – 423** (6'53" – 7'03"/km) |
+| **Stride (Bứt tốc ngắn)** | Theo cảm giác | Không nhắc pace, chỉ đếm thời gian |
+| **Race Pace** | Theo Goal đang chọn | Sub 60: **355 – 360** (5'55" – 6'00"/km) |
+| **Race-Pace Drill** | Race Pace $\pm 5$ | Sub 60: **350 – 365** (5'50" – 6'05"/km) |
+
+*Mọi bài tập Easy, Tempo, Interval được tính từ chỉ số thể lực thật của VĐV, không ép theo tốc độ Sub 60 để phòng tránh chấn thương quá tải.*
+
+---
+
+## 5. Giáo Án 9 Tuần Chinh Phục 10 KM (16/11/2026 – 16/01/2027)
+
+Lịch tập cố định: **Thứ 3** (Cầu lông bổ trợ), **Thứ 5** (Chất lượng), **Thứ 7** (Chạy dài). **Chủ Nhật** (Thả lỏng tùy chọn có công tắc bật/tắt):
+
+| Tuần | Giai đoạn | Thứ 5 (Chất lượng) | Thứ 7 (Chạy dài) | CN (Tùy chọn) | Trọng tâm tuần |
+| :---: | :--- | :--- | :--- | :---: | :--- |
+| **T1** | Xây nền | 3,0 km Easy (Z2) | 4,5 km Easy (Z2) | 2,5 km Easy | Tái kích hoạt hệ tim mạch, kiểm soát tim Z2 < 157 bpm |
+| **T2** | Xây nền | 3,0 km Easy + 4×15s Strides | 5,0 km Easy (Z2) | 2,5 km Easy | Thêm nhịp sải chân nhanh với strides |
+| **T3** | Phát triển | 3,5 km Easy + 5×20s Strides | 6,0 km Easy (Z2) | 3,0 km Easy | Tăng cự ly chạy dài chạm mốc 6 km |
+| **T4** | **Kiểm tra 1** | **Bài Test 3 km All-out** | 5,0 km Easy (Hồi phục) | 2,5 km Easy | **Mốc Checkpoint 1**: Đánh giá khả năng bám Sub 60 |
+| **T5** | Nâng ngưỡng | 1 km WU + 3×800m Interval + CD | 7,0 km Long Run | 3,0 km Easy | Bài tập interval đầu tiên theo pace 3K (6'53"–7'03") |
+| **T6** | Nâng ngưỡng | 1 km WU + 2 km Tempo + CD | 8,0 km Long Run | 3,0 km Easy | Kéo dài khả năng chịu tải ngưỡng lactate 7'26"–7'36" |
+| **T7** | **Kiểm tra 2** | 1 km WU + 4×600m Interval + CD | **9 km (kèm 2 km Race Pace)** | 3,0 km Easy | **Mốc Checkpoint 2**: Thử nghiệm race pace trong chạy dài |
+| **T8** | Giảm tải | 1 km WU + 1,5 km Tempo + 3×15s | 6,0 km Long Run nhẹ nhàng | Nghỉ ngơi | Tích lũy năng lượng, thả lỏng gân cơ |
+| **T9** | **Tuần Race** | 2,0 km Easy + 3×100m Race Drill | **RACE DAY 10 KM (16/01/2027)** | Ăn mừng | Chiến thuật 3-split: 0-3km (6'03"), 3-8km (5'57"), 8-10km (5'50") |
+
+### Quy Tắc Đánh Giá Checkpoint Thông Minh (Chỉ gợi ý, không tự đổi):
+- **Tuần 4 (Test 3 km):**
+  - $\le 18:30$ $\to$ *"Đang đúng hướng Sub 60, tiếp tục duy trì!"*
+  - $18:31 - 19:30$ $\to$ Gợi ý *"Nên chuyển sang Sub 65 để an toàn"*. Có nút Đồng ý / Giữ Sub 60.
+  - $> 19:30$ $\to$ Gợi ý *"Nên chuyển sang Dưới 70 phút"*. Có nút Đồng ý / Giữ Sub 60.
+- **Tuần 7 (2 km Race Pace):**
+  - Nếu pace TB chậm hơn race pace $> 15$ s/km hoặc HR TB $\ge 186$ bpm $\to$ Gợi ý hạ một bậc mục tiêu.
+
+---
+
+## 6. Cấu Trúc Mã Nguồn & Module Hóa Thuần Túy
+
+Dự án tách biệt hoàn toàn giữa **Pure Business Logic** (không import React/Expo, dễ dàng unit test bằng Jest) và **UI/Native Services**:
 
 ```text
 sub60-audio-pacer/
-├── .github/
-│   └── workflows/
-│       └── ios-unsigned-ipa.yml      # GitHub Actions macOS runner build .ipa miễn phí cho Sideloadly
 ├── src/
-│   ├── data/
-│   │   └── trainingPlan.json         # Giáo án 10 tuần (10/11/2026 - 16/01/2027) & hồ sơ sinh lý
-│   ├── hooks/
-│   │   ├── useBleHeartRate.ts        # Module 1: Quét BLE 0x180D, giải mã 0x2A37 & Auto-Reconnect
-│   │   └── useRunningPacer.ts        # Module 2: Background GPS, Rolling Pace 20s/90m & State Machine
+│   ├── config/
+│   │   └── coachConfig.ts          # Bộ ngưỡng tập trung (dung sai pace, cooldown, ngưỡng tim, speech)
+│   ├── logic/                      # PURE LOGIC (100% độc lập, không import react/expo)
+│   │   ├── athlete.ts              # Hồ sơ VĐV, 3 goal tiers, công thức Riegel, checkpoint W4 & W7
+│   │   ├── zones.ts                # 5 vùng tim Joe Friel, cảnh báo nguy hiểm 190/195 bpm, trần chặng
+│   │   ├── paces.ts                # Công thức tính pace động (easy, tempo, interval, race), format pace
+│   │   ├── eta.ts                  # Tính thời gian hoàn thành dự kiến (ETA) dựa trên 2 split gần nhất
+│   │   ├── gpsFilter.ts            # Lọc GPS accuracy > 20m, grace period 20s/100m, auto-pause, check-in PT
+│   │   └── __tests__/              # 5 bộ Unit Test Jest (34/34 tests passed)
 │   ├── services/
-│   │   └── audioCoach.ts             # Module 3: TTS Tiếng Việt, iOS Audio Ducking & Metronome 172 bpm
-│   └── screens/
-│       ├── HomeScreen.tsx            # Giao diện chọn bài chạy 10 tuần & kết nối HUAWEI WATCH FIT 4
-│       └── RunHudScreen.tsx          # Giao diện HUD OLED tương phản cao + nút chuyển nhanh Sub65
-├── App.tsx                           # Điểm vào ứng dụng giữ kết nối BLE xuyên suốt
-├── app.json                          # Cấu hình Info.plist (UIBackgroundModes: location, audio, bluetooth-central)
-├── eas.json                          # Cấu hình Expo EAS Build
-├── package.json                      # Danh sách thư viện tương thích chuẩn Expo SDK 52
-└── tsconfig.json                     # Cấu hình TypeScript
+│   │   ├── audioCoach.ts           # Hàng đợi ưu tiên âm thanh, Ducking iOS, Metronome phần cứng WAV loop
+│   │   └── storage.ts              # AsyncStorage lưu session chạy, RPE, note 3 dòng, checkpoint history
+│   ├── hooks/
+│   │   ├── useBleHeartRate.ts      # BLE GATT Heart Rate 0x180D (HUAWEI WATCH FIT 4)
+│   │   └── useRunningPacer.ts      # Pacer Engine chạy nền, GPS Background Task, Cadence qua Pedometer
+│   ├── screens/
+│   │   ├── HomeScreen.tsx          # Chọn bài tập 9 tuần, chỉnh chỉ số VĐV, chọn mục tiêu, toggle CN
+│   │   ├── RunHudScreen.tsx        # HUD OLED tương phản cao, nút Hạ mục tiêu, nút LAP, RPE & Post-Run Note
+│   │   └── StatsScreen.tsx         # Bảng 5 Zone Joe Friel động, tích lũy km, đánh giá checkpoint, lịch sử run
+│   └── data/
+│       └── trainingPlan.json       # Giáo án 9 tuần chuẩn hóa với trường paceType
+├── .github/workflows/
+│   └── ios-unsigned-ipa.yml        # Build unsigned IPA tự động trên macOS runner (Miễn phí 100%)
+└── jest.config.js                  # Cấu hình Jest chạy TypeScript logic
 ```
 
-## 2. Phân tích Kỹ thuật & Huấn luyện theo Hồ sơ Cá nhân
+---
 
-| Thông số / Ràng buộc | Giá trị cấu hình trong Code | Cơ chế xử lý kỹ thuật & An toàn Y khoa |
-| :--- | :--- | :--- |
-| **Chuẩn BLE Nhịp tim** | Service `0x180D` / Char `0x2A37` | Giải mã bit `0` của byte Flags (`0x01`) trong [đặc tả GATT Heart Rate Service](https://www.bluetooth.com/wp-content/uploads/Files/Specification/HTML/HRS_v1.0/out/en/index-en.html) để tự động đọc cả định dạng `UINT8` lẫn `UINT16 Little-Endian` và tự động kết nối lại với hàm mũ lùi (`exponential backoff`) khi nhiễu sóng. |
-| **Chống trùng lặp Strava** | Local-only Telemetry | App chỉ đọc luồng nhịp tim thời gian thực để nhắc âm thanh, hoàn toàn không ghi đè hay đẩy file `.fit`/`.gpx` lên Strava vì HUAWEI WATCH FIT 4 đã tự đồng bộ qua Huawei Health. |
-| **Ngưỡng an toàn Tim mạch** | Hard Limit `>= 178 bpm` (30 giây) | Vượt nhẹ ngưỡng Lactate (`176 bpm`) và bảo vệ huyết áp nền (`128/88 mmHg`). Khi nhịp tim `>= 178 bpm` liên tục 30 giây, `audioCoach.ts` kích hoạt cờ `CRITICAL_HR` ngắt mọi thông báo khác để yêu cầu giảm tốc hoặc đi bộ 30 giây. |
-| **Làm mượt GPS (Rolling Pace)** | Cửa sổ trượt `18–20s` hoặc `90m` | Lọc bỏ các điểm GPS có sai số ngang `accuracy > 25m` hoặc vận tốc tức thời ảo `> 7.5 m/s`, tính vận tốc trượt trên quãng đường thực tế giúp cảnh báo lệch Pace (`±10s/km` trong 20s, cooldown 45s) chính xác tuyệt đối. |
-| **Audio Ducking trên iOS** | `InterruptionModeIOS.DuckOthers` | Trước khi đọc câu nhắc Tiếng Việt qua [Expo Speech](https://docs.expo.dev/versions/latest/sdk/speech/), `audioCoach.ts` chuyển `AVAudioSession` sang `DuckOthers` để nhạc Spotify/Apple Music nhỏ xuống êm ái, sau đó trả về `MixWithOthers` trong callback `onDone`. |
-| **Metronome không cần file** | `170–175 bpm` (Mặc định `172 bpm`) | Tự động khởi tạo buffer âm thanh PCM WAV 16-bit (`createMetronomeTickDataUri`) trực tiếp trong RAM, giúp giữ guồng chân ngắn, giảm tải lực dội lên khớp gối ở mức cân nặng `73,7 kg`. |
+## 7. Các Cải Tiến Kỹ Thuật Đáng Chú Ý
 
-## 3. Hướng dẫn Lệnh chạy trên Windows & Build file `.ipa` Miễn phí 100%
+1. **Âm thanh Không Bị Trôi (Hardware WAV Loop Metronome):**
+   - Loại bỏ hoàn toàn `setInterval` trong JavaScript thread. Sử dụng file buffer âm thanh WAV 16-bit PCM được tạo trực tiếp trong RAM và phát lặp vô tận bằng `expo-av` (`isLooping: true`) trên audio thread phần cứng của iOS.
+2. **Hàng Đợi Âm Thanh Thông Minh (Audio Priority Queue):**
+   - Phân cấp ưu tiên: `CRITICAL` (Ngắt ngay lập tức khi tim nguy hiểm), `SAFETY`, `MILESTONE` (Báo km, checkpoint), `COACHING` (Điều chỉnh pace).
+   - Tự động hủy câu nhắc cũ quá hạn (TTL 15s) và giới hạn tối đa 2 câu trong hàng đợi để không nói liên tục làm phiền người chạy.
+3. **Lọc GPS & Dung Sai Thông Minh (Smart Tolerance):**
+   - Thời gian ân hạn 20 giây đầu chặng hoặc 100m không kích hoạt cảnh báo pace.
+   - Dung sai êm dịu $\pm 12$ s/km giúp người chạy không bị giật mình khi pace dao động tự nhiên.
+   - Khi tín hiệu GPS yếu ($accuracy > 20$m), tự động tạm ngắt thông báo pace để tránh đọc sai số.
+4. **Tự Động Dừng (Auto-Pause):**
+   - Vận tốc $< 1.0$ m/s liên tục 6 giây $\to$ tự động tạm dừng đếm thời gian.
+   - Vận tốc $> 1.8$ m/s liên tục 3 giây $\to$ tự động tiếp tục.
+5. **Đánh Giá RPE & Nhật Ký Buổi Chạy (Post-Run Notes):**
+   - Cho phép nhập thang đo gắng sức RPE (1–10) và lưu trữ 3 dòng: *Làm tốt*, *Chưa được*, *Cách sửa buổi tới*.
+6. **Dự Đoán Thời Gian Về Đích (ETA Milestone):**
+   - Ở mỗi mốc 1 km, huấn luyện viên thông báo cự ly đã chạy, nhịp tim hiện tại, pace trung bình và thời gian về đích dự kiến dựa trên phong độ 2 km gần nhất.
 
-> **Lưu ý quan trọng về tài khoản Apple miễn phí ($0):**
-> Dịch vụ đám mây [Expo EAS Build](https://docs.expo.dev/build/introduction/) khi đóng gói file `.ipa` cho thiết bị thật (`simulator: false`) sẽ yêu cầu đăng nhập tài khoản Apple Developer trả phí ($99/năm) để cấp Provisioning Profile trên cloud. Để **miễn phí 100% trên máy Windows**, cách tốt nhất là dùng **GitHub Actions (macOS Runner miễn phí 2.000 phút/tháng)** để biên dịch ra file `Sub60AudioPacer-unsigned.ipa`, sau đó dùng [Sideloadly](https://sideloadly.io/) trên Windows ký bằng **Apple ID cá nhân miễn phí** của bạn và cài thẳng vào iPhone!
+---
 
-### Bước 1: Khởi tạo dự án trên Windows (PowerShell / Command Prompt)
+## 8. Hướng Dẫn Kiểm Thử & Biên Dịch IPA
 
-```powershell
-# 1. Tạo thư mục dự án Expo mới
-npx create-expo-app@latest sub60-audio-pacer --template blank-typescript
-cd sub60-audio-pacer
+### Chạy Unit Test Logic
+```bash
+npm test
+```
+Toàn bộ 5 test suites (`athlete`, `paces`, `zones`, `eta`, `gpsFilter`) với 34 unit tests kiểm tra toàn diện các công thức toán học và ngưỡng an toàn.
 
-# 2. Cài đặt toàn bộ gói thư viện chuẩn tương thích với Expo SDK
-npx expo install expo-location expo-task-manager expo-speech expo-av expo-keep-awake expo-haptics react-native-ble-plx @config-plugins/react-native-ble-plx buffer react-native-safe-area-context
-
-# 3. Tạo cấu trúc thư mục mã nguồn
-mkdir src\data, src\hooks, src\services, src\screens, .github\workflows
+### Kiểm Tra TypeScript
+```bash
+npm run typecheck
 ```
 
-Sau khi tạo xong thư mục, hãy chép các file đã được tạo sẵn (`package.json`, `app.json`, `eas.json`, `App.tsx`, `trainingPlan.json` vào `src/data/`, `useBleHeartRate.ts` & `useRunningPacer.ts` vào `src/hooks/`, `audioCoach.ts` vào `src/services/`, `HomeScreen.tsx` & `RunHudScreen.tsx` vào `src/screens/`).
-
-### Bước 2: Tạo file GitHub Actions `.github/workflows/ios-unsigned-ipa.yml` (Build `.ipa` miễn phí trên macOS Cloud)
-
-Tạo file `.github/workflows/ios-unsigned-ipa.yml` với nội dung sau:
-
-```yaml
-name: Build Unsigned iOS IPA for Sideloadly (100% Free)
-
-on:
-  workflow_dispatch:
-  push:
-    branches: [ main, master ]
-
-jobs:
-  build-ios-ipa:
-    runs-on: macos-14
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm install --legacy-peer-deps
-
-      - name: Expo Prebuild iOS Native Project
-        run: npx expo prebuild --platform ios --clean
-
-      - name: Install CocoaPods
-        working-directory: ios
-        run: pod install
-
-      - name: Build Unsigned Release .app via Xcodebuild
-        working-directory: ios
-        run: |
-          WORKSPACE=$(ls -d *.xcworkspace | head -n 1)
-          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
-          xcodebuild -workspace "$WORKSPACE" \
-            -scheme "$SCHEME" \
-            -configuration Release \
-            -sdk iphoneos \
-            -derivedDataPath build \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-             clean build
-
-      - name: Package Payload into Sub60AudioPacer.ipa
-        working-directory: ios
-        run: |
-          mkdir -p Payload
-          APP_PATH=$(find build/Build/Products/Release-iphoneos -name "*.app" | head -n 1)
-          cp -r "$APP_PATH" Payload/
-          zip -r -9 Sub60AudioPacer-unsigned.ipa Payload
-
-      - name: Upload .ipa Artifact for Sideloadly
-        uses: actions/upload-artifact@v4
-        with:
-          name: Sub60AudioPacer-iOS-IPA
-          path: ios/Sub60AudioPacer-unsigned.ipa
-```
-
-### Bước 3: Đẩy code lên GitHub & Cài file `.ipa` vào iPhone qua Sideloadly trên Windows
-
-1. **Đẩy code lên GitHub từ Windows:**
-   ```powershell
-   git init
+### Đóng Gói File `.ipa` Cho iPhone (Miễn Phí 100% Qua GitHub Actions)
+1. Commit và Push mã nguồn lên nhánh `main` của repository GitHub:
+   ```bash
    git add .
-   git commit -m "Initial MVP Sub60 Audio Pacer"
-   git branch -M main
-   git remote add origin https://github.com/<TEN_GITHUB_CUA_BAN>/sub60-audio-pacer.git
-   git push -u origin main
+   git commit -m "feat: complete athlete profile, 9-week plan, pure logic, tests, and persistence"
+   git push origin main
    ```
-2. **Tải file `.ipa`:** Mở tab **Actions** trên kho lưu trữ GitHub của bạn, đợi khoảng 8–12 phút để luồng `Build Unsigned iOS IPA for Sideloadly` chạy xong, sau đó tải gói **Sub60AudioPacer-iOS-IPA** về máy Windows và giải nén lấy file `Sub60AudioPacer-unsigned.ipa`.
-3. **Cài đặt lên iPhone bằng [Sideloadly](https://sideloadly.io/):**
-   * Cài đặt **iTunes** và **iCloud** bản chính thức từ trang chủ Apple cho Windows (không dùng bản Microsoft Store), sau đó mở [Sideloadly](https://sideloadly.io/).
-   * Cắm cáp kết nối iPhone vào máy tính Windows, kéo file `Sub60AudioPacer-unsigned.ipa` vào ô **IPA** của Sideloadly, nhập **Apple ID miễn phí** của bạn và bấm **Start**.
-   * Trên iPhone, vào **Cài đặt (Settings) &rarr; Cài đặt chung (General) &rarr; Quản lý VPN & Thiết bị (VPN & Device Management)** &rarr; chọn email Apple ID của bạn và bấm **Tin cậy (Trust)**, đồng thời bật **Chế độ Nhà phát triển (Developer Mode)** trong mục **Quyền riêng tư & Bảo mật (Privacy & Security)**.
-4. **Chuẩn bị trước khi chạy bộ:**
-   * Trên đồng hồ **HUAWEI WATCH FIT 4**: Vào **Cài đặt (Settings) &rarr; Thiết lập bài tập (Workout Settings) &rarr; Phát sóng dữ liệu nhịp tim (Heart Rate Data Broadcasts)** và bật lên.
-   * Mở nhạc trên **Spotify / Apple Music** qua tai nghe Bluetooth, mở ứng dụng **Sub60 Audio Pacer**, bấm **Kết nối HUAWEI WATCH FIT 4**, chọn buổi chạy trong tuần, bấm **Bắt đầu chạy**, sau đó **khóa màn hình iPhone và bỏ vào túi chạy bộ**.
+2. Vào tab **Actions** trên GitHub repository, quy trình `Build Unsigned iOS IPA for Sideloadly` sẽ tự động chạy trên macOS runner.
+3. Khi hoàn tất, tải file artifact `Sub60AudioPacer-iOS-IPA` (chứa `Sub60AudioPacer-unsigned.ipa`).
+4. Mở phần mềm [Sideloadly](https://sideloadly.io/) trên máy tính Windows, cắm cáp kết nối iPhone, kéo thả file `.ipa` vào và bấm **Start** với tài khoản Apple ID cá nhân miễn phí.

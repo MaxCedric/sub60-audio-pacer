@@ -1,54 +1,119 @@
 {
   "athleteProfile": {
     "name": "Runner Sub60",
-    "baselineDate": "2026-11-12",
+    "baselineDate": "2026-11-15",
     "raceDate": "2027-01-16",
+    "raceDistanceKm": 10,
     "weightKg": 73.7,
-    "vo2Max": 36,
-    "pr5kTime": "35:44",
-    "pr5kPaceSecPerKm": 428,
-    "lactateThresholdHrBpm": 175,
-    "lactateThresholdPaceSecPerKm": 461,
+    "vo2Max": 35,
+    "runningAbilityIndex": 26.3,
+    "lactateThresholdHrBpm": 176,
+    "lactateThresholdPaceSecPerKm": 451,
+    "maxHrBpm": 195,
+    "dangerHrBpm": 190,
+    "dangerSustainedSeconds": 30,
     "bloodPressureBaseline": "128/88 mmHg",
-    "earlyWarningHrBpm": 170,
-    "hardLimitHrBpm": 178,
-    "hardLimitSustainedSeconds": 8,
-    "targetCadenceBpm": 172,
-    "primaryGoal": {
-      "name": "Sub 60 phút (10 km)",
-      "targetPaceMinSec": 358,
-      "targetPaceMaxSec": 360
+    "fastest3kSec": 1268,
+    "pr5kTime": "35:44",
+    "fastestKmPaceSec": 377,
+    "longestRunKm": 9.15,
+    "recentWeeklyVolumeKm": 3.5,
+    "weeklySchedule": {
+      "tuesday": "Cầu lông (Cross-training — không chạy)",
+      "thursday": "Chạy chất lượng / Tempo / Interval",
+      "saturday": "Chạy dài (Long Run)",
+      "sunday": "Easy 20–25 phút (tùy chọn)"
     },
-    "fallbackGoal": {
-      "name": "Sub 65 phút (Phương án an toàn)",
+    "selectedGoalId": "sub60",
+    "primaryGoal": {
+      "id": "sub60",
+      "name": "Sub 60",
+      "targetTimeStr": "59:59",
+      "targetPaceMinSec": 355,
+      "targetPaceMaxSec": 360,
+      "description": "5'55\"–6'00\"/km (Mục tiêu chính)"
+    },
+    "fallbackGoal1": {
+      "id": "sub65",
+      "name": "Sub 65",
+      "targetTimeStr": "1:04:59",
       "targetPaceMinSec": 385,
-      "targetPaceMaxSec": 390
+      "targetPaceMaxSec": 390,
+      "description": "6'25\"–6'30\"/km (Phương án an toàn 1)"
+    },
+    "fallbackGoal2": {
+      "id": "under70",
+      "name": "Dưới 70 phút",
+      "targetTimeStr": "1:09:59",
+      "targetPaceMinSec": 415,
+      "targetPaceMaxSec": 420,
+      "description": "6'55\"–7'00\"/km (Phương án an toàn 2)"
     }
   },
   "weeks": [
     {
       "weekNumber": 1,
-      "dateRange": "10/11/2026 - 15/11/2026",
-      "focus": "Khởi động nền tảng hiếu khí & kiểm soát nhịp tim dưới 158 bpm",
+      "dateRange": "16/11/2026 - 22/11/2026",
+      "focus": "Xây lại nền tảng hiếu khí, cho phép xen kẽ đi bộ, kiểm soát tim Z2 < 157 bpm",
       "workouts": [
         {
-          "id": "w1-sat-long",
+          "id": "w1-thu-easy",
+          "dayOfWeek": "Thứ Năm",
+          "date": "2026-11-19",
+          "title": "Tuần 1 - T5: Easy 3,0 km (Chạy 4' / Đi 1')",
+          "type": "EASY_RUN",
+          "totalDistanceKm": 3.0,
+          "description": "3,0 km easy pace 8'16\"–9'01\", cho phép chạy 4 phút đi bộ 1 phút, giữ HR < 157 bpm",
+          "segments": [
+            {
+              "id": "w1-thu-1",
+              "name": "Easy 3,0 km (Run/Walk)",
+              "type": "main",
+              "paceType": "easy",
+              "distanceMeters": 3000,
+              "maxHrBpm": 157,
+              "voiceIntro": "Bắt đầu chạy ba ki lô mét. Chạy nhẹ nhàng, cho phép đi bộ xen kẽ, giữ tim dưới một trăm năm mươi bảy."
+            }
+          ]
+        },
+        {
+          "id": "w1-sat-easy",
           "dayOfWeek": "Thứ Bảy",
-          "date": "2026-11-14",
-          "title": "Tuần 1 - T7: Long Run 6,0 km",
-          "type": "LONG_RUN",
-          "totalDistanceKm": 6.0,
-          "description": "6,0 km chạy bền nền tảng pace 7'30\"–7'50\", giữ HR < 158 bpm",
+          "date": "2026-11-21",
+          "title": "Tuần 1 - T7: Easy 4,0 km",
+          "type": "EASY_RUN",
+          "totalDistanceKm": 4.0,
+          "description": "4,0 km chạy bền nhẹ nhàng tích lũy nền tảng, giữ HR < 157 bpm",
           "segments": [
             {
               "id": "w1-sat-1",
-              "name": "Long Run Hiếu Khí 6,0 km",
+              "name": "Easy 4,0 km",
               "type": "main",
-              "distanceMeters": 6000,
-              "targetPaceMinSec": 450,
-              "targetPaceMaxSec": 470,
-              "maxHrBpm": 158,
-              "voiceIntro": "Bắt đầu bài chạy dài sáu ki lô mét tuần một. Duy trì pace bảy phút ba mươi đến bảy phút năm mươi, tuyệt đối không bứt tốc, giữ nhịp tim dưới một trăm năm mươi tám."
+              "paceType": "easy",
+              "distanceMeters": 4000,
+              "maxHrBpm": 157,
+              "voiceIntro": "Bắt đầu bốn ki lô mét nhẹ nhàng. Thả lỏng vai, thở đều hai hai, kiểm soát nhịp tim."
+            }
+          ]
+        },
+        {
+          "id": "w1-sun-opt",
+          "dayOfWeek": "Chủ Nhật",
+          "date": "2026-11-22",
+          "title": "Tuần 1 - CN: Easy 20–25 phút (Tùy chọn)",
+          "type": "EASY_RUN",
+          "isOptional": true,
+          "totalDistanceKm": 2.5,
+          "description": "2,5 km thả lỏng nhẹ nhàng hồi phục cơ bắp (không bắt buộc)",
+          "segments": [
+            {
+              "id": "w1-sun-1",
+              "name": "Thả lỏng tùy chọn 2,5 km",
+              "type": "cooldown",
+              "paceType": "easy",
+              "distanceMeters": 2500,
+              "maxHrBpm": 150,
+              "voiceIntro": "Buổi thả lỏng tùy chọn. Chạy chậm rãi thoải mái, không cần ép cự ly."
             }
           ]
         }
@@ -56,188 +121,118 @@
     },
     {
       "weekNumber": 2,
-      "dateRange": "16/11/2026 - 22/11/2026",
-      "focus": "Kích hoạt guồng chân với Interval 400m & Long Run tăng tốc cuối bài",
+      "dateRange": "23/11/2026 - 29/11/2026",
+      "focus": "Kích hoạt guồng chân với Strides 15s & tăng cự ly cuối tuần lên 5 km",
       "workouts": [
         {
-          "id": "w2-thu-interval",
+          "id": "w2-thu-strides",
           "dayOfWeek": "Thứ Năm",
-          "date": "2026-11-19",
-          "title": "Tuần 2 - T5: Interval 6x400m (4,5 km)",
-          "type": "INTERVAL",
-          "totalDistanceKm": 4.5,
-          "description": "1km nhẹ + 6x400m pace 6'00\" nghỉ 90s + 0,6km nhẹ",
+          "date": "2026-11-26",
+          "title": "Tuần 2 - T5: Easy 3,0 km + 4×15s Strides",
+          "type": "STRIDES",
+          "totalDistanceKm": 3.4,
+          "description": "3,0 km easy + 4 tổ bứt tốc 15 giây theo cảm giác (đi bộ 60s)",
           "segments": [
             {
-              "id": "w2-thu-wu",
-              "name": "Khởi động 1,0 km",
-              "type": "warmup",
-              "distanceMeters": 1000,
-              "targetPaceMinSec": 450,
-              "targetPaceMaxSec": 480,
-              "maxHrBpm": 158,
-              "voiceIntro": "Bắt đầu bài Interval tuần hai. Khởi động nhẹ một ki lô mét trước khi vào tổ bốn trăm mét."
+              "id": "w2-thu-easy",
+              "name": "Easy 3,0 km",
+              "type": "main",
+              "paceType": "easy",
+              "distanceMeters": 3000,
+              "maxHrBpm": 157,
+              "voiceIntro": "Chạy nhẹ nhàng ba cây số trước khi bước vào các tổ bứt tốc ngắn."
             },
             {
-              "id": "w2-thu-rep1",
-              "name": "Tổ 1/6: 400m @ 6'00\"",
-              "type": "interval_work",
-              "distanceMeters": 400,
-              "targetPaceMinSec": 355,
-              "targetPaceMaxSec": 365,
-              "maxHrBpm": 175,
-              "voiceIntro": "Tổ một trên sáu, bốn trăm mét pace sáu phút. Đẩy guồng chân nhanh và nhẹ."
+              "id": "w2-thu-s1",
+              "name": "Stride 1/4 (15s)",
+              "type": "stride",
+              "paceType": "stride",
+              "durationSeconds": 15,
+              "maxHrBpm": 185,
+              "voiceIntro": "Tổ một, tăng tốc mười lăm giây theo cảm giác. Đẩy guồng chân nhanh và nhẹ."
             },
             {
-              "id": "w2-thu-rest1",
-              "name": "Nghỉ phục hồi 90 giây (1/6)",
+              "id": "w2-thu-r1",
+              "name": "Đi bộ nghỉ 60s (1/4)",
               "type": "interval_rest",
-              "durationSeconds": 90,
-              "targetPaceMinSec": 510,
-              "targetPaceMaxSec": 660,
-              "maxHrBpm": 155,
-              "voiceIntro": "Hết tổ một. Đi bộ hoặc chạy rề chín mươi giây để hạ nhịp tim."
+              "paceType": "rest",
+              "durationSeconds": 60,
+              "maxHrBpm": 150,
+              "voiceIntro": "Đi bộ sáu mươi giây hạ nhịp tim."
             },
             {
-              "id": "w2-thu-rep2",
-              "name": "Tổ 2/6: 400m @ 6'00\"",
-              "type": "interval_work",
-              "distanceMeters": 400,
-              "targetPaceMinSec": 355,
-              "targetPaceMaxSec": 365,
-              "maxHrBpm": 175,
-              "voiceIntro": "Tổ hai trên sáu, bốn trăm mét pace sáu phút."
+              "id": "w2-thu-s2",
+              "name": "Stride 2/4 (15s)",
+              "type": "stride",
+              "paceType": "stride",
+              "durationSeconds": 15,
+              "maxHrBpm": 185,
+              "voiceIntro": "Tổ hai, bứt tốc mười lăm giây."
             },
             {
-              "id": "w2-thu-rest2",
-              "name": "Nghỉ phục hồi 90 giây (2/6)",
+              "id": "w2-thu-r2",
+              "name": "Đi bộ nghỉ 60s (2/4)",
               "type": "interval_rest",
-              "durationSeconds": 90,
-              "targetPaceMinSec": 510,
-              "targetPaceMaxSec": 660,
-              "maxHrBpm": 155,
-              "voiceIntro": "Hết tổ hai. Phục hồi chín mươi giây."
+              "paceType": "rest",
+              "durationSeconds": 60,
+              "maxHrBpm": 150,
+              "voiceIntro": "Đi bộ thả lỏng."
             },
             {
-              "id": "w2-thu-rep3",
-              "name": "Tổ 3/6: 400m @ 6'00\"",
-              "type": "interval_work",
-              "distanceMeters": 400,
-              "targetPaceMinSec": 355,
-              "targetPaceMaxSec": 365,
-              "maxHrBpm": 176,
-              "voiceIntro": "Tổ ba trên sáu, bốn trăm mét pace sáu phút."
+              "id": "w2-thu-s3",
+              "name": "Stride 3/4 (15s)",
+              "type": "stride",
+              "paceType": "stride",
+              "durationSeconds": 15,
+              "maxHrBpm": 185,
+              "voiceIntro": "Tổ ba, nâng nhẹ gối."
             },
             {
-              "id": "w2-thu-rest3",
-              "name": "Nghỉ phục hồi 90 giây (3/6)",
+              "id": "w2-thu-r3",
+              "name": "Đi bộ nghỉ 60s (3/4)",
               "type": "interval_rest",
-              "durationSeconds": 90,
-              "targetPaceMinSec": 510,
-              "targetPaceMaxSec": 660,
-              "maxHrBpm": 155,
-              "voiceIntro": "Hết tổ ba. Đi bộ thả lỏng chín mươi giây."
+              "paceType": "rest",
+              "durationSeconds": 60,
+              "maxHrBpm": 150,
+              "voiceIntro": "Đi bộ hạ nhiệt."
             },
             {
-              "id": "w2-thu-rep4",
-              "name": "Tổ 4/6: 400m @ 6'00\"",
-              "type": "interval_work",
-              "distanceMeters": 400,
-              "targetPaceMinSec": 355,
-              "targetPaceMaxSec": 365,
-              "maxHrBpm": 176,
-              "voiceIntro": "Tổ bốn trên sáu, bốn trăm mét pace sáu phút."
+              "id": "w2-thu-s4",
+              "name": "Stride 4/4 (15s)",
+              "type": "stride",
+              "paceType": "stride",
+              "durationSeconds": 15,
+              "maxHrBpm": 185,
+              "voiceIntro": "Tổ cuối, bứt tốc mười lăm giây rồi thả lỏng."
             },
             {
-              "id": "w2-thu-rest4",
-              "name": "Nghỉ phục hồi 90 giây (4/6)",
+              "id": "w2-thu-r4",
+              "name": "Đi bộ kết thúc (60s)",
               "type": "interval_rest",
-              "durationSeconds": 90,
-              "targetPaceMinSec": 510,
-              "targetPaceMaxSec": 660,
-              "maxHrBpm": 155,
-              "voiceIntro": "Hết tổ bốn. Phục hồi chín mươi giây."
-            },
-            {
-              "id": "w2-thu-rep5",
-              "name": "Tổ 5/6: 400m @ 6'00\"",
-              "type": "interval_work",
-              "distanceMeters": 400,
-              "targetPaceMinSec": 355,
-              "targetPaceMaxSec": 365,
-              "maxHrBpm": 176,
-              "voiceIntro": "Tổ năm trên sáu, bốn trăm mét pace sáu phút."
-            },
-            {
-              "id": "w2-thu-rest5",
-              "name": "Nghỉ phục hồi 90 giây (5/6)",
-              "type": "interval_rest",
-              "durationSeconds": 90,
-              "targetPaceMinSec": 510,
-              "targetPaceMaxSec": 660,
-              "maxHrBpm": 155,
-              "voiceIntro": "Hết tổ năm. Nghỉ chín mươi giây trước tổ cuối."
-            },
-            {
-              "id": "w2-thu-rep6",
-              "name": "Tổ 6/6: 400m @ 6'00\"",
-              "type": "interval_work",
-              "distanceMeters": 400,
-              "targetPaceMinSec": 355,
-              "targetPaceMaxSec": 365,
-              "maxHrBpm": 176,
-              "voiceIntro": "Tổ cuối cùng, sáu trên sáu, bốn trăm mét pace sáu phút. Giữ vững form chạy."
-            },
-            {
-              "id": "w2-thu-rest6",
-              "name": "Nghỉ phục hồi 90 giây (6/6)",
-              "type": "interval_rest",
-              "durationSeconds": 90,
-              "targetPaceMinSec": 510,
-              "targetPaceMaxSec": 660,
-              "maxHrBpm": 155,
-              "voiceIntro": "Hoàn thành sáu tổ bốn trăm mét. Đi bộ chín mươi giây trước khi chạy thả lỏng."
-            },
-            {
-              "id": "w2-thu-cd",
-              "name": "Thả lỏng 0,6 km",
-              "type": "cooldown",
-              "distanceMeters": 600,
-              "targetPaceMinSec": 460,
-              "targetPaceMaxSec": 510,
-              "maxHrBpm": 155,
-              "voiceIntro": "Chạy thả lỏng sáu trăm mét cuối bài để đưa nhịp tim về trạng thái ổn định."
+              "paceType": "rest",
+              "durationSeconds": 60,
+              "maxHrBpm": 150,
+              "voiceIntro": "Hoàn thành bài tập. Đi bộ thả lỏng nhé."
             }
           ]
         },
         {
-          "id": "w2-sat-long",
+          "id": "w2-sat-easy",
           "dayOfWeek": "Thứ Bảy",
-          "date": "2026-11-21",
-          "title": "Tuần 2 - T7: Long Run 7,0 km",
-          "type": "LONG_RUN",
-          "totalDistanceKm": 7.0,
-          "description": "6km pace 7'30\" + 1km cuối 6'45\"",
+          "date": "2026-11-28",
+          "title": "Tuần 2 - T7: Easy 5,0 km",
+          "type": "EASY_RUN",
+          "totalDistanceKm": 5.0,
+          "description": "5,0 km chạy bền hiếu khí, giữ nhịp tim ổn định Zone 2",
           "segments": [
             {
               "id": "w2-sat-1",
-              "name": "Chạy bền 6,0 km đầu",
+              "name": "Easy 5,0 km",
               "type": "main",
-              "distanceMeters": 6000,
-              "targetPaceMinSec": 445,
-              "targetPaceMaxSec": 455,
-              "maxHrBpm": 160,
-              "voiceIntro": "Bắt đầu sáu ki lô mét đầu tiên ở pace bảy phút ba mươi. Chạy thật thoải mái và tiết kiệm sức."
-            },
-            {
-              "id": "w2-sat-2",
-              "name": "Tăng tốc 1,0 km cuối @ 6'45\"",
-              "type": "main",
-              "distanceMeters": 1000,
-              "targetPaceMinSec": 400,
-              "targetPaceMaxSec": 410,
-              "maxHrBpm": 170,
-              "voiceIntro": "Ki lô mét cuối cùng. Tăng nhẹ tốc độ lên pace sáu phút bốn mươi lăm giây."
+              "paceType": "easy",
+              "distanceMeters": 5000,
+              "maxHrBpm": 157,
+              "voiceIntro": "Bắt đầu năm ki lô mét nhẹ nhàng. Thả lỏng hai tay, giữ nhịp bước đều."
             }
           ]
         }
@@ -245,78 +240,82 @@
     },
     {
       "weekNumber": 3,
-      "dateRange": "23/11/2026 - 29/11/2026",
-      "focus": "Nâng ngưỡng Lactate với Tempo 3,5 km & Long Run 8 km",
+      "dateRange": "30/11/2026 - 06/12/2026",
+      "focus": "Làm quen với nhịp độ Tempo ngưỡng lactate & Long Run 6,0 km",
       "workouts": [
         {
           "id": "w3-thu-tempo",
           "dayOfWeek": "Thứ Năm",
-          "date": "2026-11-26",
-          "title": "Tuần 3 - T5: Tempo 5,0 km",
+          "date": "2026-12-03",
+          "title": "Tuần 3 - T5: 2×1,5 km Tempo (5,5 km)",
           "type": "TEMPO",
-          "totalDistanceKm": 5.0,
-          "description": "1km nhẹ + 3,5km pace 6'40\" + 0,5km nhẹ",
+          "totalDistanceKm": 5.5,
+          "description": "1 km khởi động + 2 tổ 1,5 km tempo pace 7'26\"–7'36\" (nghỉ 2') + 0,5 km thả lỏng",
           "segments": [
             {
-              "id": "w3-thu-1",
+              "id": "w3-thu-wu",
               "name": "Khởi động 1,0 km",
               "type": "warmup",
+              "paceType": "easy",
               "distanceMeters": 1000,
-              "targetPaceMinSec": 445,
-              "targetPaceMaxSec": 475,
-              "maxHrBpm": 158,
-              "voiceIntro": "Bắt đầu bài Tempo năm ki lô mét tuần ba. Một ki lô mét đầu khởi động nhẹ."
+              "maxHrBpm": 157,
+              "voiceIntro": "Khởi động một cây số làm ấm cơ bắp."
             },
             {
-              "id": "w3-thu-2",
-              "name": "Tempo 3,5 km @ 6'40\"",
-              "type": "main",
-              "distanceMeters": 3500,
-              "targetPaceMinSec": 395,
-              "targetPaceMaxSec": 405,
-              "maxHrBpm": 173,
-              "voiceIntro": "Vào ba phẩy năm ki lô mét Tempo. Giữ pace ổn định sáu phút bốn mươi giây."
+              "id": "w3-thu-t1",
+              "name": "Tổ 1: 1,5 km Tempo",
+              "type": "tempo",
+              "paceType": "tempo",
+              "distanceMeters": 1500,
+              "maxHrBpm": 176,
+              "voiceIntro": "Tổ một, một cây rưỡi nhịp tempo. Duy trì nhịp thở ổn định, tim dưới một bảy sáu."
             },
             {
-              "id": "w3-thu-3",
-              "name": "Thả lỏng 0,5 km",
+              "id": "w3-thu-r1",
+              "name": "Đi bộ hồi phục 2 phút",
+              "type": "interval_rest",
+              "paceType": "rest",
+              "durationSeconds": 120,
+              "maxHrBpm": 150,
+              "voiceIntro": "Đi bộ hai phút hạ nhịp tim."
+            },
+            {
+              "id": "w3-thu-t2",
+              "name": "Tổ 2: 1,5 km Tempo",
+              "type": "tempo",
+              "paceType": "tempo",
+              "distanceMeters": 1500,
+              "maxHrBpm": 176,
+              "voiceIntro": "Tổ hai, một cây rưỡi tempo. Giữ vững nhịp độ."
+            },
+            {
+              "id": "w3-thu-cd",
+              "name": "Thả lỏng 500m",
               "type": "cooldown",
+              "paceType": "easy",
               "distanceMeters": 500,
-              "targetPaceMinSec": 460,
-              "targetPaceMaxSec": 510,
-              "maxHrBpm": 155,
-              "voiceIntro": "Hoàn thành chặng Tempo. Năm trăm mét cuối chạy chậm thả lỏng."
+              "maxHrBpm": 150,
+              "voiceIntro": "Năm trăm mét thả lỏng về đích."
             }
           ]
         },
         {
           "id": "w3-sat-long",
           "dayOfWeek": "Thứ Bảy",
-          "date": "2026-11-28",
-          "title": "Tuần 3 - T7: Long Run 8,0 km",
+          "date": "2026-12-05",
+          "title": "Tuần 3 - T7: Long Easy 6,0 km",
           "type": "LONG_RUN",
-          "totalDistanceKm": 8.0,
-          "description": "6,5km pace 7'25\" + 1,5km cuối 6'30\"",
+          "totalDistanceKm": 6.0,
+          "description": "6,0 km chạy dài bền bỉ kiểm soát nhịp tim",
           "segments": [
             {
               "id": "w3-sat-1",
-              "name": "Chạy bền 6,5 km @ 7'25\"",
+              "name": "Long Easy 6,0 km",
               "type": "main",
-              "distanceMeters": 6500,
-              "targetPaceMinSec": 440,
-              "targetPaceMaxSec": 450,
-              "maxHrBpm": 162,
-              "voiceIntro": "Bắt đầu bài chạy dài tám ki lô mét. Sáu phẩy năm ki lô mét đầu giữ pace bảy phút hai mươi lăm giây."
-            },
-            {
-              "id": "w3-sat-2",
-              "name": "Tăng tốc 1,5 km cuối @ 6'30\"",
-              "type": "main",
-              "distanceMeters": 1500,
-              "targetPaceMinSec": 385,
-              "targetPaceMaxSec": 395,
-              "maxHrBpm": 173,
-              "voiceIntro": "Một phẩy năm ki lô mét cuối. Đẩy tốc độ lên pace sáu phút ba mươi giây."
+              "paceType": "easy",
+              "distanceMeters": 6000,
+              "maxHrBpm": 157,
+              "voiceIntro": "Bắt đầu sáu cây số chạy dài. Giữ nhịp đều, tim trong vùng hiếu khí."
             }
           ]
         }
@@ -324,118 +323,73 @@
     },
     {
       "weekNumber": 4,
-      "dateRange": "30/11/2026 - 06/12/2026",
-      "focus": "Tuần giảm tải (Deload) phục hồi cơ khớp & làm sắc bén sải chân",
+      "dateRange": "07/12/2026 - 13/12/2026",
+      "focus": "Tuần giảm tải & BÀI TEST 3 KM HẾT SỨC đánh giá mốc mục tiêu",
       "workouts": [
         {
-          "id": "w4-thu-easy-strides",
+          "id": "w4-thu-easy",
           "dayOfWeek": "Thứ Năm",
-          "date": "2026-12-03",
-          "title": "Tuần 4 - T5: Easy 4,0 km + 4x100m Strides",
-          "type": "EASY",
-          "totalDistanceKm": 4.4,
-          "description": "Chạy Easy 4,0 km + 4 tổ 100m lướt nhanh (Strides)",
+          "date": "2026-12-10",
+          "title": "Tuần 4 - T5: Easy 3,5 km + 4×15s Strides",
+          "type": "STRIDES",
+          "totalDistanceKm": 3.9,
+          "description": "Giảm tải nhẹ nhàng giữ cảm giác chân trước bài test thứ 7",
           "segments": [
             {
-              "id": "w4-thu-main",
-              "name": "Easy Run 4,0 km",
+              "id": "w4-thu-easy",
+              "name": "Easy 3,5 km",
               "type": "main",
-              "distanceMeters": 4000,
-              "targetPaceMinSec": 445,
-              "targetPaceMaxSec": 465,
-              "maxHrBpm": 158,
-              "voiceIntro": "Tuần bốn giảm tải. Chạy bốn ki lô mét nhẹ nhàng ở pace bảy phút ba mươi trước khi thực hiện bốn tổ lướt một trăm mét."
+              "paceType": "easy",
+              "distanceMeters": 3500,
+              "maxHrBpm": 157,
+              "voiceIntro": "Chạy nhẹ nhàng ba cây rưỡi giữ sức cho bài kiểm tra cuối tuần."
             },
             {
               "id": "w4-thu-s1",
-              "name": "Stride 1/4 (100m)",
+              "name": "4×15s Strides",
               "type": "stride",
-              "distanceMeters": 100,
-              "targetPaceMinSec": 310,
-              "targetPaceMaxSec": 340,
-              "maxHrBpm": 172,
-              "voiceIntro": "Lướt tổ một một trăm mét. Tăng nhịp chân nhanh, thả lỏng vai."
-            },
-            {
-              "id": "w4-thu-sr1",
-              "name": "Đi bộ nghỉ 60 giây (1/4)",
-              "type": "interval_rest",
-              "durationSeconds": 60,
-              "targetPaceMinSec": 540,
-              "targetPaceMaxSec": 700,
-              "maxHrBpm": 150,
-              "voiceIntro": "Đi bộ thả lỏng sáu mươi giây."
-            },
-            {
-              "id": "w4-thu-s2",
-              "name": "Stride 2/4 (100m)",
-              "type": "stride",
-              "distanceMeters": 100,
-              "targetPaceMinSec": 310,
-              "targetPaceMaxSec": 340,
-              "maxHrBpm": 172,
-              "voiceIntro": "Lướt tổ hai một trăm mét."
-            },
-            {
-              "id": "w4-thu-sr2",
-              "name": "Đi bộ nghỉ 60 giây (2/4)",
-              "type": "interval_rest",
-              "durationSeconds": 60,
-              "targetPaceMinSec": 540,
-              "targetPaceMaxSec": 700,
-              "maxHrBpm": 150,
-              "voiceIntro": "Đi bộ nghỉ sáu mươi giây."
-            },
-            {
-              "id": "w4-thu-s3",
-              "name": "Stride 3/4 (100m)",
-              "type": "stride",
-              "distanceMeters": 100,
-              "targetPaceMinSec": 310,
-              "targetPaceMaxSec": 340,
-              "maxHrBpm": 172,
-              "voiceIntro": "Lướt tổ ba một trăm mét."
-            },
-            {
-              "id": "w4-thu-sr3",
-              "name": "Đi bộ nghỉ 60 giây (3/4)",
-              "type": "interval_rest",
-              "durationSeconds": 60,
-              "targetPaceMinSec": 540,
-              "targetPaceMaxSec": 700,
-              "maxHrBpm": 150,
-              "voiceIntro": "Đi bộ nghỉ sáu mươi giây."
-            },
-            {
-              "id": "w4-thu-s4",
-              "name": "Stride 4/4 (100m)",
-              "type": "stride",
-              "distanceMeters": 100,
-              "targetPaceMinSec": 310,
-              "targetPaceMaxSec": 340,
-              "maxHrBpm": 172,
-              "voiceIntro": "Tổ lướt cuối cùng một trăm mét."
+              "paceType": "stride",
+              "durationSeconds": 15,
+              "maxHrBpm": 185,
+              "voiceIntro": "Bứt tốc mười lăm giây kích hoạt guồng chân."
             }
           ]
         },
         {
-          "id": "w4-sat-long",
+          "id": "w4-sat-test",
           "dayOfWeek": "Thứ Bảy",
-          "date": "2026-12-05",
-          "title": "Tuần 4 - T7: Easy Long Run 6,5 km",
-          "type": "LONG_RUN",
-          "totalDistanceKm": 6.5,
-          "description": "6,5 km chạy phục hồi pace 7'30\"",
+          "date": "2026-12-12",
+          "title": "Tuần 4 - T7: CHECKPOINT TEST 3,0 KM HẾT SỨC (5,5 km)",
+          "type": "TEST_RUN",
+          "totalDistanceKm": 5.5,
+          "description": "1,5 km khởi động + 3,0 km test hết sức xác định mục tiêu + 1 km thả lỏng",
           "segments": [
             {
-              "id": "w4-sat-1",
-              "name": "Easy Long Run 6,5 km @ 7'30\"",
-              "type": "main",
-              "distanceMeters": 6500,
-              "targetPaceMinSec": 445,
-              "targetPaceMaxSec": 460,
-              "maxHrBpm": 158,
-              "voiceIntro": "Bài chạy dài giảm tải sáu phẩy năm ki lô mét. Giữ pace bảy phút ba mươi và tận hưởng nhịp thở êm."
+              "id": "w4-sat-wu",
+              "name": "Khởi động kỹ 1,5 km",
+              "type": "warmup",
+              "paceType": "easy",
+              "distanceMeters": 1500,
+              "maxHrBpm": 160,
+              "voiceIntro": "Khởi động kỹ một cây rưỡi chuẩn bị cho bài test ba cây."
+            },
+            {
+              "id": "w4-sat-test3k",
+              "name": "TEST 3,0 KM HẾT SỨC",
+              "type": "interval_work",
+              "paceType": "stride",
+              "distanceMeters": 3000,
+              "maxHrBpm": 195,
+              "voiceIntro": "Bắt đầu ba cây số kiểm tra thể lực hết sức. Phân phối sức hợp lý, nỗ lực tối đa."
+            },
+            {
+              "id": "w4-sat-cd",
+              "name": "Thả lỏng 1,0 km",
+              "type": "cooldown",
+              "paceType": "easy",
+              "distanceMeters": 1000,
+              "maxHrBpm": 150,
+              "voiceIntro": "Hoàn thành bài test. Đi bộ và chạy chậm một cây số để hồi phục."
             }
           ]
         }
@@ -443,148 +397,145 @@
     },
     {
       "weekNumber": 5,
-      "dateRange": "07/12/2026 - 13/12/2026",
-      "focus": "Xây dựng VO2max với Interval 4x800m ở tốc độ nhanh hơn Sub60",
+      "dateRange": "14/12/2026 - 20/12/2026",
+      "focus": "Kích hoạt tốc độ VO2max với Interval 5×400m & Long Run 7 km có Progression",
       "workouts": [
         {
           "id": "w5-thu-interval",
           "dayOfWeek": "Thứ Năm",
-          "date": "2026-12-10",
-          "title": "Tuần 5 - T5: Interval 4x800m (5,0 km)",
+          "date": "2026-12-17",
+          "title": "Tuần 5 - T5: Interval 5×400m (4,5 km)",
           "type": "INTERVAL",
-          "totalDistanceKm": 5.0,
-          "description": "1km nhẹ + 4x800m pace 5'50\"–5'55\" nghỉ 2p + 0,8km nhẹ",
+          "totalDistanceKm": 4.5,
+          "description": "1 km khởi động + 5 tổ 400m pace 6'53\"–7'03\" (nghỉ 90s đi bộ) + 1 km thả lỏng",
           "segments": [
             {
               "id": "w5-thu-wu",
               "name": "Khởi động 1,0 km",
               "type": "warmup",
+              "paceType": "easy",
               "distanceMeters": 1000,
-              "targetPaceMinSec": 440,
-              "targetPaceMaxSec": 470,
-              "maxHrBpm": 158,
-              "voiceIntro": "Bắt đầu bài Interval tám trăm mét tuần năm. Một ki lô mét khởi động nhẹ."
+              "maxHrBpm": 157,
+              "voiceIntro": "Khởi động một cây số trước các tổ biến tốc bốn trăm mét."
             },
             {
               "id": "w5-thu-rep1",
-              "name": "Tổ 1/4: 800m @ 5'50\"-5'55\"",
+              "name": "Tổ 1/5: 400m Interval",
               "type": "interval_work",
-              "distanceMeters": 800,
-              "targetPaceMinSec": 350,
-              "targetPaceMaxSec": 355,
-              "maxHrBpm": 176,
-              "voiceIntro": "Tổ một trên bốn, tám trăm mét ở pace năm phút năm mươi đến năm phút năm mươi lăm."
+              "paceType": "interval",
+              "distanceMeters": 400,
+              "maxHrBpm": 185,
+              "voiceIntro": "Tổ một trên năm, bốn trăm mét. Đẩy nhanh guồng chân."
             },
             {
               "id": "w5-thu-rest1",
-              "name": "Nghỉ phục hồi 2 phút (1/4)",
+              "name": "Nghỉ đi bộ 90s",
               "type": "interval_rest",
-              "durationSeconds": 120,
-              "targetPaceMinSec": 510,
-              "targetPaceMaxSec": 660,
-              "maxHrBpm": 155,
-              "voiceIntro": "Hết tổ một. Đi bộ hoặc chạy nhẹ hai phút."
+              "paceType": "rest",
+              "durationSeconds": 90,
+              "maxHrBpm": 150,
+              "voiceIntro": "Đi bộ chín mươi giây hạ nhịp tim."
             },
             {
               "id": "w5-thu-rep2",
-              "name": "Tổ 2/4: 800m @ 5'50\"-5'55\"",
+              "name": "Tổ 2/5: 400m Interval",
               "type": "interval_work",
-              "distanceMeters": 800,
-              "targetPaceMinSec": 350,
-              "targetPaceMaxSec": 355,
-              "maxHrBpm": 176,
-              "voiceIntro": "Tổ hai trên bốn, tám trăm mét pace năm phút năm mươi."
+              "paceType": "interval",
+              "distanceMeters": 400,
+              "maxHrBpm": 185,
+              "voiceIntro": "Tổ hai, giữ guồng chân nhẹ."
             },
             {
               "id": "w5-thu-rest2",
-              "name": "Nghỉ phục hồi 2 phút (2/4)",
+              "name": "Nghỉ đi bộ 90s",
               "type": "interval_rest",
-              "durationSeconds": 120,
-              "targetPaceMinSec": 510,
-              "targetPaceMaxSec": 660,
-              "maxHrBpm": 155,
-              "voiceIntro": "Hết tổ hai. Phục hồi hai phút."
+              "paceType": "rest",
+              "durationSeconds": 90,
+              "maxHrBpm": 150,
+              "voiceIntro": "Đi bộ thở sâu."
             },
             {
               "id": "w5-thu-rep3",
-              "name": "Tổ 3/4: 800m @ 5'50\"-5'55\"",
+              "name": "Tổ 3/5: 400m Interval",
               "type": "interval_work",
-              "distanceMeters": 800,
-              "targetPaceMinSec": 350,
-              "targetPaceMaxSec": 355,
-              "maxHrBpm": 176,
-              "voiceIntro": "Tổ ba trên bốn, tám trăm mét pace năm phút năm mươi."
+              "paceType": "interval",
+              "distanceMeters": 400,
+              "maxHrBpm": 185,
+              "voiceIntro": "Tổ ba, duy trì nhịp thở."
             },
             {
               "id": "w5-thu-rest3",
-              "name": "Nghỉ phục hồi 2 phút (3/4)",
+              "name": "Nghỉ đi bộ 90s",
               "type": "interval_rest",
-              "durationSeconds": 120,
-              "targetPaceMinSec": 510,
-              "targetPaceMaxSec": 660,
-              "maxHrBpm": 155,
-              "voiceIntro": "Hết tổ ba. Phục hồi hai phút trước tổ cuối."
+              "paceType": "rest",
+              "durationSeconds": 90,
+              "maxHrBpm": 150,
+              "voiceIntro": "Đi bộ thả lỏng."
             },
             {
               "id": "w5-thu-rep4",
-              "name": "Tổ 4/4: 800m @ 5'50\"-5'55\"",
+              "name": "Tổ 4/5: 400m Interval",
               "type": "interval_work",
-              "distanceMeters": 800,
-              "targetPaceMinSec": 350,
-              "targetPaceMaxSec": 355,
-              "maxHrBpm": 176,
-              "voiceIntro": "Tổ bốn trên bốn, tám trăm mét cuối cùng. Giữ nhịp thở đều."
+              "paceType": "interval",
+              "distanceMeters": 400,
+              "maxHrBpm": 185,
+              "voiceIntro": "Tổ bốn, ráng lên sắp xong rồi."
             },
             {
               "id": "w5-thu-rest4",
-              "name": "Nghỉ phục hồi 2 phút (4/4)",
+              "name": "Nghỉ đi bộ 90s",
               "type": "interval_rest",
-              "durationSeconds": 120,
-              "targetPaceMinSec": 510,
-              "targetPaceMaxSec": 660,
-              "maxHrBpm": 155,
-              "voiceIntro": "Hoàn thành bốn tổ tám trăm mét. Đi bộ hai phút."
+              "paceType": "rest",
+              "durationSeconds": 90,
+              "maxHrBpm": 150,
+              "voiceIntro": "Đi bộ hồi sức."
+            },
+            {
+              "id": "w5-thu-rep5",
+              "name": "Tổ 5/5: 400m Interval",
+              "type": "interval_work",
+              "paceType": "interval",
+              "distanceMeters": 400,
+              "maxHrBpm": 185,
+              "voiceIntro": "Tổ cuối cùng, giữ vững kỹ thuật."
             },
             {
               "id": "w5-thu-cd",
-              "name": "Thả lỏng 0,8 km",
+              "name": "Thả lỏng 1,0 km",
               "type": "cooldown",
-              "distanceMeters": 800,
-              "targetPaceMinSec": 460,
-              "targetPaceMaxSec": 510,
-              "maxHrBpm": 155,
-              "voiceIntro": "Chạy thả lỏng tám trăm mét cuối bài."
+              "paceType": "easy",
+              "distanceMeters": 1000,
+              "maxHrBpm": 150,
+              "voiceIntro": "Hoàn thành tổ biến tốc. Đi bộ và chạy nhẹ một cây số."
             }
           ]
         },
         {
           "id": "w5-sat-long",
           "dayOfWeek": "Thứ Bảy",
-          "date": "2026-12-12",
-          "title": "Tuần 5 - T7: Long Run 9,0 km",
+          "date": "2026-12-19",
+          "title": "Tuần 5 - T7: Long 7,0 km (6 km Easy + 1 km Progression)",
           "type": "LONG_RUN",
-          "totalDistanceKm": 9.0,
-          "description": "7km pace 7'15\" + 2km cuối 6'20\"",
+          "totalDistanceKm": 7.0,
+          "description": "6 km chạy bền hiếu khí + 1 km cuối tăng tốc nhẹ pace 7'41\"–7'51\"",
           "segments": [
             {
-              "id": "w5-sat-1",
-              "name": "Chạy bền 7,0 km @ 7'15\"",
+              "id": "w5-sat-easy",
+              "name": "Easy 6,0 km",
               "type": "main",
-              "distanceMeters": 7000,
-              "targetPaceMinSec": 430,
-              "targetPaceMaxSec": 440,
-              "maxHrBpm": 162,
-              "voiceIntro": "Bắt đầu bài chạy dài chín ki lô mét. Bảy ki lô mét đầu giữ pace bảy phút mười lăm giây."
+              "paceType": "easy",
+              "distanceMeters": 6000,
+              "maxHrBpm": 157,
+              "voiceIntro": "Sáu cây số chạy nhẹ nhàng đầu bài."
             },
             {
-              "id": "w5-sat-2",
-              "name": "Tăng tốc 2,0 km cuối @ 6'20\"",
+              "id": "w5-sat-prog",
+              "name": "Progression 1,0 km cuối",
               "type": "main",
-              "distanceMeters": 2000,
-              "targetPaceMinSec": 375,
-              "targetPaceMaxSec": 385,
-              "maxHrBpm": 174,
-              "voiceIntro": "Hai ki lô mét cuối. Tăng tốc lên pace sáu phút hai mươi giây."
+              "paceType": "progression",
+              "distanceMeters": 1000,
+              "maxHrBpm": 172,
+              "voiceIntro": "Một cây số cuối, tăng nhẹ tốc độ nhịp nhàng."
             }
           ]
         }
@@ -592,68 +543,91 @@
     },
     {
       "weekNumber": 6,
-      "dateRange": "14/12/2026 - 20/12/2026",
-      "focus": "Kiểm tra năng lực giữa kỳ: Test 5 km mục tiêu dưới 29 phút 30 giây",
+      "dateRange": "21/12/2026 - 27/12/2026",
+      "focus": "Tăng cường ngưỡng lactate với 2×2 km Tempo & Long Run 8 km",
       "workouts": [
         {
-          "id": "w6-thu-easy",
+          "id": "w6-thu-tempo",
           "dayOfWeek": "Thứ Năm",
-          "date": "2026-12-17",
-          "title": "Tuần 6 - T5: Easy 3,5 km dưỡng sức",
-          "type": "EASY",
-          "totalDistanceKm": 3.5,
-          "description": "3,5 km chạy nhẹ pace 7'30\" giữ chân cho bài Test 5 km",
+          "date": "2026-12-24",
+          "title": "Tuần 6 - T5: 2×2,0 km Tempo (5,5 km)",
+          "type": "TEMPO",
+          "totalDistanceKm": 5.5,
+          "description": "1 km khởi động + 2 tổ 2 km pace tempo (nghỉ 2') + 0,5 km thả lỏng",
           "segments": [
             {
-              "id": "w6-thu-1",
-              "name": "Easy Run 3,5 km @ 7'30\"",
-              "type": "main",
-              "distanceMeters": 3500,
-              "targetPaceMinSec": 445,
-              "targetPaceMaxSec": 460,
-              "maxHrBpm": 156,
-              "voiceIntro": "Bài chạy nhẹ ba phẩy năm ki lô mét chuẩn bị cho buổi kiểm tra năm ki lô mét cuối tuần. Giữ pace bảy phút ba mươi."
+              "id": "w6-thu-wu",
+              "name": "Khởi động 1,0 km",
+              "type": "warmup",
+              "paceType": "easy",
+              "distanceMeters": 1000,
+              "maxHrBpm": 157,
+              "voiceIntro": "Khởi động một cây số làm nóng."
+            },
+            {
+              "id": "w6-thu-t1",
+              "name": "Tổ 1: 2,0 km Tempo",
+              "type": "tempo",
+              "paceType": "tempo",
+              "distanceMeters": 2000,
+              "maxHrBpm": 176,
+              "voiceIntro": "Tổ một, hai cây số tempo. Giữ nhịp thở đều."
+            },
+            {
+              "id": "w6-thu-rest1",
+              "name": "Đi bộ hồi phục 2 phút",
+              "type": "interval_rest",
+              "paceType": "rest",
+              "durationSeconds": 120,
+              "maxHrBpm": 150,
+              "voiceIntro": "Đi bộ hai phút thả lỏng."
+            },
+            {
+              "id": "w6-thu-t2",
+              "name": "Tổ 2: 2,0 km Tempo",
+              "type": "tempo",
+              "paceType": "tempo",
+              "distanceMeters": 2000,
+              "maxHrBpm": 176,
+              "voiceIntro": "Tổ hai, hai cây số tempo. Giữ vững phong độ."
+            },
+            {
+              "id": "w6-thu-cd",
+              "name": "Thả lỏng 500m",
+              "type": "cooldown",
+              "paceType": "easy",
+              "distanceMeters": 500,
+              "maxHrBpm": 150,
+              "voiceIntro": "Thả lỏng năm trăm mét."
             }
           ]
         },
         {
-          "id": "w6-sat-test5k",
+          "id": "w6-sat-long",
           "dayOfWeek": "Thứ Bảy",
-          "date": "2026-12-19",
-          "title": "Tuần 6 - T7: TEST 5 KM (<29:30)",
-          "type": "TIME_TRIAL",
-          "totalDistanceKm": 7.0,
-          "description": "1km nhẹ + 5km hết sức mục tiêu <29:30 (pace ~5'52\"/km) + 1km nhẹ",
+          "date": "2026-12-26",
+          "title": "Tuần 6 - T7: Long 8,0 km (6,5 km Easy + 1,5 km Progression)",
+          "type": "LONG_RUN",
+          "totalDistanceKm": 8.0,
+          "description": "8 km xây nền sức bền sâu sắc",
           "segments": [
             {
-              "id": "w6-sat-wu",
-              "name": "Khởi động 1,0 km",
-              "type": "warmup",
-              "distanceMeters": 1000,
-              "targetPaceMinSec": 440,
-              "targetPaceMaxSec": 470,
-              "maxHrBpm": 156,
-              "voiceIntro": "Bắt đầu buổi kiểm tra năm ki lô mét. Khởi động thật kỹ một ki lô mét đầu tiên."
-            },
-            {
-              "id": "w6-sat-test",
-              "name": "Test 5,0 km Mục tiêu <29:30",
+              "id": "w6-sat-easy",
+              "name": "Easy 6,5 km",
               "type": "main",
-              "distanceMeters": 5000,
-              "targetPaceMinSec": 348,
-              "targetPaceMaxSec": 354,
-              "maxHrBpm": 177,
-              "voiceIntro": "Bắt đầu năm ki lô mét tính giờ. Giữ pace ổn định năm phút năm mươi đến năm phút năm mươi bốn giây để phá mốc hai mươi chín phút ba mươi giây."
+              "paceType": "easy",
+              "distanceMeters": 6500,
+              "maxHrBpm": 157,
+              "voiceIntro": "Sáu cây rưỡi chạy nhẹ nhàng tích lũy hiếu khí."
             },
             {
-              "id": "w6-sat-cd",
-              "name": "Thả lỏng 1,0 km",
-              "type": "cooldown",
-              "distanceMeters": 1000,
-              "targetPaceMinSec": 460,
-              "targetPaceMaxSec": 510,
-              "maxHrBpm": 155,
-              "voiceIntro": "Chúc mừng bạn đã hoàn thành bài kiểm tra năm ki lô mét. Chạy chậm một ki lô mét thả lỏng."
+              "id": "w6-sat-prog",
+              "name": "Progression 1,5 km",
+              "type": "main",
+              "paceType": "progression",
+              "distanceMeters": 1500,
+              "maxHrBpm": 174,
+              "voiceIntro": "Một cây rưỡi cuối tăng tốc nhẹ nhàng về đích."
             }
           ]
         }
@@ -661,78 +635,127 @@
     },
     {
       "weekNumber": 7,
-      "dateRange": "21/12/2026 - 27/12/2026",
-      "focus": "Đẩy ngưỡng Tempo dài 4,5 km & Long Run 9,5 km sát tốc độ mục tiêu",
+      "dateRange": "28/12/2026 - 03/01/2027",
+      "focus": "TUẦN ĐỈNH KHỐI LƯỢNG (15,2 km): Interval 4×800m & Long 9 km (có 2 km Race Pace)",
       "workouts": [
         {
-          "id": "w7-thu-tempo",
+          "id": "w7-thu-interval",
           "dayOfWeek": "Thứ Năm",
-          "date": "2026-12-24",
-          "title": "Tuần 7 - T5: Tempo 6,0 km",
-          "type": "TEMPO",
-          "totalDistanceKm": 6.0,
-          "description": "1km nhẹ + 4,5km pace 6'15\"–6'20\" + 0,5km nhẹ",
+          "date": "2026-12-31",
+          "title": "Tuần 7 - T5: Interval 4×800m (6,2 km)",
+          "type": "INTERVAL",
+          "totalDistanceKm": 6.2,
+          "description": "1 km khởi động + 4 tổ 800m (nghỉ 2' đi bộ) + 1 km thả lỏng",
           "segments": [
             {
-              "id": "w7-thu-1",
+              "id": "w7-thu-wu",
               "name": "Khởi động 1,0 km",
               "type": "warmup",
+              "paceType": "easy",
               "distanceMeters": 1000,
-              "targetPaceMinSec": 440,
-              "targetPaceMaxSec": 470,
-              "maxHrBpm": 156,
-              "voiceIntro": "Bài Tempo sáu ki lô mét tuần bảy. Một ki lô mét đầu khởi động nhẹ."
+              "maxHrBpm": 157,
+              "voiceIntro": "Khởi động một cây số kỹ càng."
             },
             {
-              "id": "w7-thu-2",
-              "name": "Tempo 4,5 km @ 6'15\"-6'20\"",
-              "type": "main",
-              "distanceMeters": 4500,
-              "targetPaceMinSec": 375,
-              "targetPaceMaxSec": 380,
-              "maxHrBpm": 175,
-              "voiceIntro": "Vào chặng chính bốn phẩy năm ki lô mét Tempo. Duy trì pace sáu phút mười lăm đến sáu phút hai mươi giây."
+              "id": "w7-thu-rep1",
+              "name": "Tổ 1/4: 800m",
+              "type": "interval_work",
+              "paceType": "interval",
+              "distanceMeters": 800,
+              "maxHrBpm": 188,
+              "voiceIntro": "Tổ một, tám trăm mét biến tốc."
             },
             {
-              "id": "w7-thu-3",
-              "name": "Thả lỏng 0,5 km",
+              "id": "w7-thu-rest1",
+              "name": "Đi bộ 2 phút",
+              "type": "interval_rest",
+              "paceType": "rest",
+              "durationSeconds": 120,
+              "maxHrBpm": 150,
+              "voiceIntro": "Đi bộ hai phút hạ tim."
+            },
+            {
+              "id": "w7-thu-rep2",
+              "name": "Tổ 2/4: 800m",
+              "type": "interval_work",
+              "paceType": "interval",
+              "distanceMeters": 800,
+              "maxHrBpm": 188,
+              "voiceIntro": "Tổ hai, giữ guồng chân đều."
+            },
+            {
+              "id": "w7-thu-rest2",
+              "name": "Đi bộ 2 phút",
+              "type": "interval_rest",
+              "paceType": "rest",
+              "durationSeconds": 120,
+              "maxHrBpm": 150,
+              "voiceIntro": "Đi bộ thả lỏng."
+            },
+            {
+              "id": "w7-thu-rep3",
+              "name": "Tổ 3/4: 800m",
+              "type": "interval_work",
+              "paceType": "interval",
+              "distanceMeters": 800,
+              "maxHrBpm": 188,
+              "voiceIntro": "Tổ ba, nỗ lực giữ nhịp."
+            },
+            {
+              "id": "w7-thu-rest3",
+              "name": "Đi bộ 2 phút",
+              "type": "interval_rest",
+              "paceType": "rest",
+              "durationSeconds": 120,
+              "maxHrBpm": 150,
+              "voiceIntro": "Đi bộ hạ nhiệt."
+            },
+            {
+              "id": "w7-thu-rep4",
+              "name": "Tổ 4/4: 800m",
+              "type": "interval_work",
+              "paceType": "interval",
+              "distanceMeters": 800,
+              "maxHrBpm": 188,
+              "voiceIntro": "Tổ cuối cùng, cố lên về đích."
+            },
+            {
+              "id": "w7-thu-cd",
+              "name": "Thả lỏng 1,0 km",
               "type": "cooldown",
-              "distanceMeters": 500,
-              "targetPaceMinSec": 460,
-              "targetPaceMaxSec": 510,
-              "maxHrBpm": 155,
-              "voiceIntro": "Năm trăm mét cuối thả lỏng nhẹ nhàng."
+              "paceType": "easy",
+              "distanceMeters": 1000,
+              "maxHrBpm": 150,
+              "voiceIntro": "Thả lỏng một cây số."
             }
           ]
         },
         {
           "id": "w7-sat-long",
           "dayOfWeek": "Thứ Bảy",
-          "date": "2026-12-26",
-          "title": "Tuần 7 - T7: Long Run 9,5 km",
+          "date": "2027-01-02",
+          "title": "Tuần 7 - T7: Long 9,0 km (7 km Easy + 2 km CHECKPOINT RACE PACE)",
           "type": "LONG_RUN",
-          "totalDistanceKm": 9.5,
-          "description": "7,5km pace 7'10\" + 2km cuối 6'05\"",
+          "totalDistanceKm": 9.0,
+          "description": "7 km easy + 2 km cuối chạy đúng tốc độ thi đấu Race Pace để kiểm tra độ sẵn sàng",
           "segments": [
             {
-              "id": "w7-sat-1",
-              "name": "Chạy bền 7,5 km @ 7'10\"",
+              "id": "w7-sat-easy",
+              "name": "Easy 7,0 km",
               "type": "main",
-              "distanceMeters": 7500,
-              "targetPaceMinSec": 425,
-              "targetPaceMaxSec": 435,
-              "maxHrBpm": 162,
-              "voiceIntro": "Bài chạy dài chín phẩy năm ki lô mét. Bảy phẩy năm ki lô mét đầu giữ pace bảy phút mười giây."
+              "paceType": "easy",
+              "distanceMeters": 7000,
+              "maxHrBpm": 157,
+              "voiceIntro": "Bắt đầu bảy cây số chạy nhẹ nhàng tiết kiệm năng lượng."
             },
             {
-              "id": "w7-sat-2",
-              "name": "Tăng tốc 2,0 km cuối @ 6'05\"",
+              "id": "w7-sat-racepace",
+              "name": "CHECKPOINT: 2,0 km Race Pace",
               "type": "main",
+              "paceType": "race",
               "distanceMeters": 2000,
-              "targetPaceMinSec": 360,
-              "targetPaceMaxSec": 370,
-              "maxHrBpm": 175,
-              "voiceIntro": "Hai ki lô mét cuối cùng. Tăng tốc lên pace sáu phút không năm giây."
+              "maxHrBpm": 186,
+              "voiceIntro": "Hai cây số cuối, đẩy lên đúng tốc độ thi đấu mục tiêu. Cảm nhận guồng chân."
             }
           ]
         }
@@ -740,148 +763,91 @@
     },
     {
       "weekNumber": 8,
-      "dateRange": "28/12/2026 - 03/01/2027",
-      "focus": "Tuần Đỉnh (Peak Week): Interval 5x1000m & Long Run vượt cự ly 10,5 km",
+      "dateRange": "04/01/2027 - 10/01/2027",
+      "focus": "Giai đoạn Taper giảm tải, phục hồi cơ bắp, giữ cảm giác tốc độ",
       "workouts": [
         {
-          "id": "w8-thu-interval",
+          "id": "w8-thu-taper",
           "dayOfWeek": "Thứ Năm",
-          "date": "2026-12-31",
-          "title": "Tuần 8 (Peak) - T5: Interval 5x1000m (6,0 km)",
-          "type": "INTERVAL",
-          "totalDistanceKm": 6.0,
-          "description": "1km nhẹ + 5x1000m pace 5'50\"–5'55\" nghỉ 90s",
+          "date": "2027-01-07",
+          "title": "Tuần 8 - T5: 2 km Race Pace + 4×15s Strides (4,0 km)",
+          "type": "STRIDES",
+          "totalDistanceKm": 4.0,
+          "description": "1 km khởi động + 2 km tốc độ đua + 0,5 km thả lỏng + 4 strides ngắn",
           "segments": [
             {
               "id": "w8-thu-wu",
               "name": "Khởi động 1,0 km",
               "type": "warmup",
+              "paceType": "easy",
               "distanceMeters": 1000,
-              "targetPaceMinSec": 440,
-              "targetPaceMaxSec": 470,
-              "maxHrBpm": 156,
-              "voiceIntro": "Tuần đỉnh cao thứ tám. Khởi động một ki lô mét trước khi vào năm tổ một nghìn mét."
+              "maxHrBpm": 157,
+              "voiceIntro": "Khởi động nhẹ nhàng một cây số."
             },
             {
-              "id": "w8-thu-rep1",
-              "name": "Tổ 1/5: 1000m @ 5'50\"-5'55\"",
-              "type": "interval_work",
-              "distanceMeters": 1000,
-              "targetPaceMinSec": 350,
-              "targetPaceMaxSec": 355,
-              "maxHrBpm": 176,
-              "voiceIntro": "Tổ một trên năm, một ki lô mét pace năm phút năm mươi đến năm phút năm mươi lăm."
+              "id": "w8-thu-race",
+              "name": "2,0 km Race Pace",
+              "type": "main",
+              "paceType": "race",
+              "distanceMeters": 2000,
+              "maxHrBpm": 182,
+              "voiceIntro": "Hai cây số tốc độ đua thi đấu, làm quen nhịp thở."
             },
             {
-              "id": "w8-thu-rest1",
-              "name": "Nghỉ 90 giây (1/5)",
-              "type": "interval_rest",
-              "durationSeconds": 90,
-              "targetPaceMinSec": 510,
-              "targetPaceMaxSec": 660,
-              "maxHrBpm": 155,
-              "voiceIntro": "Hết tổ một. Đi bộ phục hồi chín mươi giây."
+              "id": "w8-thu-cd",
+              "name": "Thả lỏng 500m",
+              "type": "cooldown",
+              "paceType": "easy",
+              "distanceMeters": 500,
+              "maxHrBpm": 150,
+              "voiceIntro": "Thả lỏng năm trăm mét."
             },
             {
-              "id": "w8-thu-rep2",
-              "name": "Tổ 2/5: 1000m @ 5'50\"-5'55\"",
-              "type": "interval_work",
-              "distanceMeters": 1000,
-              "targetPaceMinSec": 350,
-              "targetPaceMaxSec": 355,
-              "maxHrBpm": 176,
-              "voiceIntro": "Tổ hai trên năm, một ki lô mét pace năm phút năm mươi."
-            },
-            {
-              "id": "w8-thu-rest2",
-              "name": "Nghỉ 90 giây (2/5)",
-              "type": "interval_rest",
-              "durationSeconds": 90,
-              "targetPaceMinSec": 510,
-              "targetPaceMaxSec": 660,
-              "maxHrBpm": 155,
-              "voiceIntro": "Hết tổ hai. Phục hồi chín mươi giây."
-            },
-            {
-              "id": "w8-thu-rep3",
-              "name": "Tổ 3/5: 1000m @ 5'50\"-5'55\"",
-              "type": "interval_work",
-              "distanceMeters": 1000,
-              "targetPaceMinSec": 350,
-              "targetPaceMaxSec": 355,
-              "maxHrBpm": 176,
-              "voiceIntro": "Tổ ba trên năm, một ki lô mét pace năm phút năm mươi."
-            },
-            {
-              "id": "w8-thu-rest3",
-              "name": "Nghỉ 90 giây (3/5)",
-              "type": "interval_rest",
-              "durationSeconds": 90,
-              "targetPaceMinSec": 510,
-              "targetPaceMaxSec": 660,
-              "maxHrBpm": 155,
-              "voiceIntro": "Hết tổ ba. Phục hồi chín mươi giây."
-            },
-            {
-              "id": "w8-thu-rep4",
-              "name": "Tổ 4/5: 1000m @ 5'50\"-5'55\"",
-              "type": "interval_work",
-              "distanceMeters": 1000,
-              "targetPaceMinSec": 350,
-              "targetPaceMaxSec": 355,
-              "maxHrBpm": 177,
-              "voiceIntro": "Tổ bốn trên năm, một ki lô mét pace năm phút năm mươi."
-            },
-            {
-              "id": "w8-thu-rest4",
-              "name": "Nghỉ 90 giây (4/5)",
-              "type": "interval_rest",
-              "durationSeconds": 90,
-              "targetPaceMinSec": 510,
-              "targetPaceMaxSec": 660,
-              "maxHrBpm": 155,
-              "voiceIntro": "Hết tổ bốn. Nghỉ chín mươi giây trước tổ cuối cùng."
-            },
-            {
-              "id": "w8-thu-rep5",
-              "name": "Tổ 5/5: 1000m @ 5'50\"-5'55\"",
-              "type": "interval_work",
-              "distanceMeters": 1000,
-              "targetPaceMinSec": 350,
-              "targetPaceMaxSec": 355,
-              "maxHrBpm": 177,
-              "voiceIntro": "Tổ cuối cùng năm trên năm, một ki lô mét pace năm phút năm mươi. Bền bỉ giữ guồng chân."
+              "id": "w8-thu-strides",
+              "name": "4×15s Strides",
+              "type": "stride",
+              "paceType": "stride",
+              "durationSeconds": 15,
+              "maxHrBpm": 185,
+              "voiceIntro": "Bứt tốc ngắn kích hoạt phản xạ cơ."
             }
           ]
         },
         {
-          "id": "w8-sat-long",
+          "id": "w8-sat-easy",
           "dayOfWeek": "Thứ Bảy",
-          "date": "2027-01-02",
-          "title": "Tuần 8 (Peak) - T7: Long Run 10,5 km",
-          "type": "LONG_RUN",
-          "totalDistanceKm": 10.5,
-          "description": "8km pace 7'00\"–7'15\" + 2,5km cuối 6'00\"–6'10\"",
+          "date": "2027-01-09",
+          "title": "Tuần 8 - T7: Easy 6,0 km (có 1 km Race Pace ở giữa)",
+          "type": "EASY_RUN",
+          "totalDistanceKm": 6.0,
+          "description": "Giảm tải cuối tuần, 1 km giữa ở pace mục tiêu",
           "segments": [
             {
-              "id": "w8-sat-1",
-              "name": "Chạy bền 8,0 km @ 7'00\"-7'15\"",
+              "id": "w8-sat-e1",
+              "name": "Easy 2,5 km",
               "type": "main",
-              "distanceMeters": 8000,
-              "targetPaceMinSec": 420,
-              "targetPaceMaxSec": 435,
-              "maxHrBpm": 163,
-              "voiceIntro": "Bài chạy dài dài nhất giáo án mười phẩy năm ki lô mét. Tám ki lô mét đầu giữ pace bảy phút đến bảy phút mười lăm giây."
+              "paceType": "easy",
+              "distanceMeters": 2500,
+              "maxHrBpm": 157,
+              "voiceIntro": "Hai cây rưỡi nhẹ nhàng khởi đầu."
             },
             {
-              "id": "w8-sat-2",
-              "name": "Mô phỏng về đích 2,5 km @ 6'00\"-6'10\"",
+              "id": "w8-sat-race",
+              "name": "1,0 km Race Pace",
               "type": "main",
+              "paceType": "race",
+              "distanceMeters": 1000,
+              "maxHrBpm": 180,
+              "voiceIntro": "Một cây số giữa bài ở tốc độ thi đấu."
+            },
+            {
+              "id": "w8-sat-e2",
+              "name": "Easy 2,5 km về đích",
+              "type": "cooldown",
+              "paceType": "easy",
               "distanceMeters": 2500,
-              "targetPaceMinSec": 360,
-              "targetPaceMaxSec": 370,
-              "maxHrBpm": 175,
-              "voiceIntro": "Hai phẩy năm ki lô mét cuối cùng. Đẩy lên pace sáu phút đến sáu phút mười giây."
+              "maxHrBpm": 155,
+              "voiceIntro": "Hai cây rưỡi thả lỏng hoàn tất tuần taper."
             }
           ]
         }
@@ -889,197 +855,73 @@
     },
     {
       "weekNumber": 9,
-      "dateRange": "04/01/2027 - 10/01/2027",
-      "focus": "Tuần Taper: Giảm khối lượng, khóa cảm giác chân ở Race Pace 5'58\"",
-      "workouts": [
-        {
-          "id": "w9-thu-racepace",
-          "dayOfWeek": "Thứ Năm",
-          "date": "2027-01-07",
-          "title": "Tuần 9 (Taper) - T5: Race Pace 4,5 km",
-          "type": "TEMPO",
-          "totalDistanceKm": 4.5,
-          "description": "1km nhẹ + 3km pace 5'58\" + 0,5km nhẹ",
-          "segments": [
-            {
-              "id": "w9-thu-1",
-              "name": "Khởi động 1,0 km",
-              "type": "warmup",
-              "distanceMeters": 1000,
-              "targetPaceMinSec": 440,
-              "targetPaceMaxSec": 470,
-              "maxHrBpm": 155,
-              "voiceIntro": "Tuần chín Taper. Một ki lô mét đầu khởi động nhẹ nhàng."
-            },
-            {
-              "id": "w9-thu-2",
-              "name": "Khóa cảm giác Race Pace 3,0 km @ 5'58\"",
-              "type": "main",
-              "distanceMeters": 3000,
-              "targetPaceMinSec": 355,
-              "targetPaceMaxSec": 361,
-              "maxHrBpm": 174,
-              "voiceIntro": "Ba ki lô mét ở đúng tốc độ thi đấu năm phút năm mươi tám giây. Chạy mượt và ghi nhớ nhịp chân."
-            },
-            {
-              "id": "w9-thu-3",
-              "name": "Thả lỏng 0,5 km",
-              "type": "cooldown",
-              "distanceMeters": 500,
-              "targetPaceMinSec": 460,
-              "targetPaceMaxSec": 510,
-              "maxHrBpm": 155,
-              "voiceIntro": "Năm trăm mét cuối thả lỏng."
-            }
-          ]
-        },
-        {
-          "id": "w9-sat-taperlong",
-          "dayOfWeek": "Thứ Bảy",
-          "date": "2027-01-09",
-          "title": "Tuần 9 (Taper) - T7: Taper Long Run 7,0 km",
-          "type": "LONG_RUN",
-          "totalDistanceKm": 7.0,
-          "description": "5km pace 7'00\" + 2km pace 6'00\"",
-          "segments": [
-            {
-              "id": "w9-sat-1",
-              "name": "Chạy êm 5,0 km @ 7'00\"",
-              "type": "main",
-              "distanceMeters": 5000,
-              "targetPaceMinSec": 415,
-              "targetPaceMaxSec": 425,
-              "maxHrBpm": 160,
-              "voiceIntro": "Bài chạy dài tuần chín bảy ki lô mét. Năm ki lô mét đầu giữ pace bảy phút."
-            },
-            {
-              "id": "w9-sat-2",
-              "name": "Chốt tốc độ 2,0 km cuối @ 6'00\"",
-              "type": "main",
-              "distanceMeters": 2000,
-              "targetPaceMinSec": 356,
-              "targetPaceMaxSec": 364,
-              "maxHrBpm": 173,
-              "voiceIntro": "Hai ki lô mét cuối ở pace mục tiêu sáu phút trên ki lô mét."
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "weekNumber": 10,
       "dateRange": "11/01/2027 - 17/01/2027",
-      "focus": "Tuần Thi Đấu (Race Week): Tích trữ Glycogen & Chinh phục 10 km Sub 60",
+      "focus": "TUẦN RACE DAY: Shakeout nhẹ & NGÀY ĐUA 10 KM (16/01/2027)",
       "workouts": [
         {
-          "id": "w10-thu-shakeout",
+          "id": "w9-thu-shakeout",
           "dayOfWeek": "Thứ Năm",
           "date": "2027-01-14",
-          "title": "Tuần 10 - T5: Shakeout 3,0 km + 3x80m lướt",
-          "type": "EASY",
-          "totalDistanceKm": 3.24,
-          "description": "3,0 km cực nhẹ + 3x80m lướt nhẹ đánh thức cơ bắp",
+          "title": "Tuần 9 - T5: Shakeout 3,0 km + 3×80m Strides",
+          "type": "STRIDES",
+          "totalDistanceKm": 3.2,
+          "description": "Chạy rũ chân cực nhẹ nhàng hai ngày trước cuộc đua",
           "segments": [
             {
-              "id": "w10-thu-main",
-              "name": "Shakeout 3,0 km cực nhẹ",
+              "id": "w9-thu-shake",
+              "name": "Shakeout nhẹ 3,0 km",
               "type": "main",
+              "paceType": "easy",
               "distanceMeters": 3000,
-              "targetPaceMinSec": 450,
-              "targetPaceMaxSec": 480,
-              "maxHrBpm": 152,
-              "voiceIntro": "Bài chạy làm nóng ba ki lô mét trước ngày đua. Chạy cực nhẹ, giữ nhịp tim thấp."
+              "maxHrBpm": 150,
+              "voiceIntro": "Chạy rũ chân ba cây số cực kỳ nhẹ nhàng, thư giãn cơ thể."
             },
             {
-              "id": "w10-thu-s1",
-              "name": "Lướt nhẹ 1/3 (80m)",
+              "id": "w9-thu-s1",
+              "name": "3×80m Strides nhẹ",
               "type": "stride",
-              "distanceMeters": 80,
-              "targetPaceMinSec": 330,
-              "targetPaceMaxSec": 355,
-              "maxHrBpm": 168,
-              "voiceIntro": "Lướt nhẹ tám mươi mét lần một."
-            },
-            {
-              "id": "w10-thu-sr1",
-              "name": "Đi bộ nghỉ 60s (1/3)",
-              "type": "interval_rest",
-              "durationSeconds": 60,
-              "targetPaceMinSec": 540,
-              "targetPaceMaxSec": 700,
-              "maxHrBpm": 145,
-              "voiceIntro": "Đi bộ sáu mươi giây."
-            },
-            {
-              "id": "w10-thu-s2",
-              "name": "Lướt nhẹ 2/3 (80m)",
-              "type": "stride",
-              "distanceMeters": 80,
-              "targetPaceMinSec": 330,
-              "targetPaceMaxSec": 355,
-              "maxHrBpm": 168,
-              "voiceIntro": "Lướt nhẹ tám mươi mét lần hai."
-            },
-            {
-              "id": "w10-thu-sr2",
-              "name": "Đi bộ nghỉ 60s (2/3)",
-              "type": "interval_rest",
-              "durationSeconds": 60,
-              "targetPaceMinSec": 540,
-              "targetPaceMaxSec": 700,
-              "maxHrBpm": 145,
-              "voiceIntro": "Đi bộ sáu mươi giây."
-            },
-            {
-              "id": "w10-thu-s3",
-              "name": "Lướt nhẹ 3/3 (80m)",
-              "type": "stride",
-              "distanceMeters": 80,
-              "targetPaceMinSec": 330,
-              "targetPaceMaxSec": 355,
-              "maxHrBpm": 168,
-              "voiceIntro": "Lướt nhẹ tám mươi mét lần cuối. Sẵn sàng cho ngày thi đấu."
+              "paceType": "stride",
+              "durationSeconds": 15,
+              "maxHrBpm": 175,
+              "voiceIntro": "Bứt tốc nhẹ nhàng đánh thức phản xạ cơ bắp."
             }
           ]
         },
         {
-          "id": "w10-sat-raceday",
-          "dayOfWeek": "Thứ Bảy (RACE DAY)",
+          "id": "w9-sat-race",
+          "dayOfWeek": "Thứ Bảy",
           "date": "2027-01-16",
-          "title": "RACE DAY 10 KM: Chiến thuật Negative Split Sub 60",
-          "type": "RACE",
+          "title": "Tuần 9 - T7: RACE DAY 10,0 KM (CHIẾN THUẬT 3 CHẶNG)",
+          "type": "RACE_DAY",
           "totalDistanceKm": 10.0,
-          "description": "Km 1–2: 6'05\"–6'10\" | Km 3–8: 5'55\"–5'58\" | Km 9–10: 5'40\"–5'50\"",
+          "description": "Ngày đua chính thức: Km 1–2 kìm chân, Km 3–8 giữ pace mục tiêu, Km 9–10 bung sức về đích",
           "segments": [
             {
-              "id": "w10-race-p1",
-              "name": "Chặng 1 (Km 1–2): Khởi đầu kìm chân",
+              "id": "w9-sat-split1",
+              "name": "Chặng 1 (Km 1–2): Kìm chân, không cuốn đám đông",
               "type": "race_split",
+              "paceType": "racedrill",
               "distanceMeters": 2000,
-              "targetPaceMinSec": 365,
-              "targetPaceMaxSec": 370,
-              "maxHrBpm": 166,
-              "voiceIntro": "Bắt đầu cuộc đua mười ki lô mét Sub sáu mươi. Hai ki lô mét đầu tiên hãy kìm chân ở pace sáu phút không năm đến sáu phút mười giây, tuyệt đối không cuốn theo đám đông."
-            },
-            {
-              "id": "w10-race-p2",
-              "name": "Chặng 2 (Km 3–8): Khóa nhịp Cruise Sub 60",
-              "type": "race_split",
-              "distanceMeters": 6000,
-              "targetPaceMinSec": 355,
-              "targetPaceMaxSec": 358,
               "maxHrBpm": 175,
-              "voiceIntro": "Bước vào sáu ki lô mét bản lề từ ki lô mét số ba đến số tám. Khóa đều pace năm phút năm mươi lăm đến năm phút năm mươi tám giây, giữ guồng chân một trăm bảy mươi hai nhịp."
+              "voiceIntro": "Xuất phát. Hai cây đầu kìm chân chậm hơn mười giây, tuyệt đối không cuốn theo đám đông."
             },
             {
-              "id": "w10-race-p3",
-              "name": "Chặng 3 (Km 9–10): Rút đích Negative Split",
+              "id": "w9-sat-split2",
+              "name": "Chặng 2 (Km 3–8): Ổn định Race Pace mục tiêu",
               "type": "race_split",
+              "paceType": "race",
+              "distanceMeters": 6000,
+              "maxHrBpm": 185,
+              "voiceIntro": "Vào guồng thi đấu. Sáu cây số duy trì đúng tốc độ mục tiêu, thở sâu nhịp hai hai."
+            },
+            {
+              "id": "w9-sat-split3",
+              "name": "Chặng 3 (Km 9–10): Bung sức rút đích an toàn",
+              "type": "race_split",
+              "paceType": "race",
               "distanceMeters": 2000,
-              "targetPaceMinSec": 340,
-              "targetPaceMaxSec": 350,
-              "maxHrBpm": 177,
-              "voiceIntro": "Hai ki lô mét cuối cùng về đích! Tăng tốc lên pace năm phút bốn mươi đến năm phút năm mươi giây để hoàn thành mục tiêu Sub sáu mươi phút!"
+              "maxHrBpm": 195,
+              "voiceIntro": "Hai cây số cuối cùng. Nếu tim dưới một tám lăm thì bứt tốc, dốc hết sức về đích."
             }
           ]
         }

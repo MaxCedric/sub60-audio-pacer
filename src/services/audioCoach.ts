@@ -1,14 +1,8 @@
 import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
 import * as Speech from 'expo-speech';
 import trainingPlanData from '../data/trainingPlan.json';
-
-/**
- * Module 3: Audio Coach (Chuẩn PT Chạy Bộ Thấu Cảm: Bình tĩnh, chậm rãi, ngắn gọn & cổ vũ)
- * - Tốc độ đọc 0.90 chậm rãi, nhịp nhàng theo nhịp thở 2:2 của runner.
- * - Ưu tiên Tim mạch hơn Pace: Nếu runner mệt (tim cao), KHÔNG bắt tăng tốc, chỉ nhắc thở sâu.
- * - Cooldown kéo dài (40-60s) để runner không bị "điếc tai" hay ồn ào khi đang chạy mệt.
- * - Tích hợp câu cổ vũ tâm lý thực chiến: "Sắp được rồi, ráng lên", "Còn 1 km", "500m cuối".
- */
+import { COACH_CONFIG } from '../config/coachConfig';
+import { formatEtaVoiceWords } from '../logic/eta';
 
 export type SpeechPriority =
   | 'CRITICAL_HR'
@@ -19,13 +13,6 @@ export type SpeechPriority =
   | 'INFO';
 
 type EarconType = 'good' | 'warn' | 'danger';
-
-// Kéo dài Cooldown để tránh nói dồn dập, nhức đầu khi chạy
-const PACE_ALERT_COOLDOWN_MS = 50000;
-const PACE_TREND_COOLDOWN_MS = 45000;
-const HR_TREND_COOLDOWN_MS = 40000;
-const HR_ALERT_COOLDOWN_MS = 25000;
-const POSITIVE_COOLDOWN_MS = 60000;
 
 /**
  * BẢNG NỘI DUNG TẤT CẢ ÂM THANH VOICE CỦA APP
@@ -52,7 +39,8 @@ export const AUDIO_SCRIPTS = {
   IN_ZONE_CONFIRM: 'Rất đều. Giữ nhịp này!',
 
   // 3. Mốc cự ly & Cổ vũ tinh thần
-  DISTANCE_SPLIT: (km: string, pace: string) => `${km}. Pace ${pace}. Tốt lắm!`,
+  DISTANCE_SPLIT: (km: string, pace: string, etaWords?: string) =>
+    etaWords ? `${km}. Pace ${pace}. Dự kiến ${etaWords}.` : `${km}. Pace ${pace}. Tốt lắm!`,
   MOTIVATION_HALFWAY: 'Qua một nửa. Giữ đều nhé!',
   MOTIVATION_1KM: 'Còn một cây. Ráng lên nào!',
   MOTIVATION_500M: 'Năm trăm mét. Cố lên đích!',
@@ -62,6 +50,7 @@ export const AUDIO_SCRIPTS = {
   WORKOUT_STOPPED: 'Đã dừng bài. Đi bộ nhé.',
   SUB65_ON: 'Bật Sub 65.',
   SUB65_OFF: 'Về Sub 60.',
+  UNDER70_ON: 'Bật Dưới 70.',
   WALK_RECOVERY_ON: 'Đi bộ nào.',
   RESUME_RUNNING: 'Chạy lại nào. Tăng từ từ.',
 };
@@ -111,16 +100,24 @@ function encodeWavBase64(samples: Int16Array, sampleRate = 22050): string {
   return `data:audio/wav;base64,${base64}`;
 }
 
-function createMetronomeTickDataUri(frequencyHz = 980, durationMs = 18): string {
-  const sampleRate = 22050;
-  const numSamples = Math.floor((sampleRate * durationMs) / 1000);
-  const samples = new Int16Array(numSamples);
-  for (let i = 0; i < numSamples; i++) {
+/**
+ * Tạo file WAV lặp hoàn hảo cho Metronome:
+ * Chiều dài đúng 60 / BPM giây (tiếng tick ở đầu, phần còn lại là im lặng).
+ * Không dùng setInterval, phát bằng expo-av với isLooping: true.
+ */
+function createMetronomeLoopDataUri(bpm: number, frequencyHz = 980, tickDurationMs = 18, sampleRate = 22050): string {
+  const periodSec = 60 / bpm;
+  const totalSamples = Math.floor(sampleRate * periodSec);
+  const tickSamples = Math.min(totalSamples, Math.floor((sampleRate * tickDurationMs) / 1000));
+  const samples = new Int16Array(totalSamples);
+
+  for (let i = 0; i < tickSamples; i++) {
     const t = i / sampleRate;
     const envelope = Math.exp(-t * 180);
     const val = Math.sin(2 * Math.PI * frequencyHz * t) * envelope;
     samples[i] = Math.round(Math.max(-1, Math.min(1, val)) * 0x7fff * 0.45);
   }
+  // Phần còn lại của mảng tự động là 0 (im lặng)
   return encodeWavBase64(samples, sampleRate);
 }
 
@@ -158,23 +155,33 @@ function createEarconDataUri(type: EarconType): string {
   return encodeWavBase64(samples, sampleRate);
 }
 
+interface QueuedSpeechItem {
+  id: number;
+  text: string;
+  priority: SpeechPriority;
+  earcon?: EarconType;
+  timestamp: number;
+}
+
 class AudioCoachService {
   private isSpeaking = false;
   private currentSpeechSessionId = 0;
+  private speechQueue: QueuedSpeechItem[] = [];
+  private queueCounter = 0;
+
   private lastPaceAlertTime = 0;
   private lastPaceTrendTime = 0;
   private lastHrTrendTime = 0;
   private lastHrAlertTime = 0;
   private lastPositiveTime = 0;
-  private speechRate = 0.82; // Tốc độ 0.82: Đọc chậm rãi, phát âm từng chữ rõ ràng theo guồng chân
+  private speechRate = COACH_CONFIG.speech.defaultRate;
 
   private lactateThresholdHrBpm: number =
-    trainingPlanData?.athleteProfile?.lactateThresholdHrBpm || 175;
+    trainingPlanData?.athleteProfile?.lactateThresholdHrBpm || 176;
 
-  private metronomeTimer: ReturnType<typeof setInterval> | null = null;
   private metronomeSound: Audio.Sound | null = null;
   private earconSounds: Partial<Record<EarconType, Audio.Sound>> = {};
-  private metronomeBpm = 172;
+  private metronomeBpm = COACH_CONFIG.cadence.defaultBpm;
   private isMetronomeActive = false;
 
   setSpeechRate(newRate: number): void {
@@ -194,11 +201,11 @@ class AudioCoachService {
   }
 
   getEarlyWarningHr(): number {
-    return this.lactateThresholdHrBpm - 5; // Mặc định 175 - 5 = 170 bpm
+    return this.lactateThresholdHrBpm - 5;
   }
 
   getHardLimitHr(): number {
-    return this.lactateThresholdHrBpm + 3; // Mặc định 175 + 3 = 178 bpm
+    return this.lactateThresholdHrBpm + 3;
   }
 
   async initAudioSession(): Promise<void> {
@@ -256,6 +263,7 @@ class AudioCoachService {
    */
   async stopAll(): Promise<void> {
     this.currentSpeechSessionId++;
+    this.speechQueue = [];
     this.isSpeaking = false;
     try {
       await Speech.stop();
@@ -284,6 +292,12 @@ class AudioCoachService {
     });
   }
 
+  /**
+   * Phát âm thanh giọng nói với cơ chế Hàng đợi ưu tiên (Audio Queue Priority):
+   * - Cảnh báo nguy hiểm (CRITICAL_HR) ngắt ngay mọi câu đang nói và dọn sạch hàng đợi.
+   * - Các câu khác được xếp hàng (tối đa 2 câu) thay vì bị bỏ qua khi đang nói.
+   * - Câu trong hàng đợi cũ hơn 15 giây tự động bị hủy.
+   */
   async speak(
     text: string,
     priority: SpeechPriority = 'INFO',
@@ -291,31 +305,55 @@ class AudioCoachService {
   ): Promise<void> {
     const now = Date.now();
 
+    // 1. Kiểm tra Cooldown theo loại thông báo
     if (priority === 'PACE_WARNING') {
-      if (now - this.lastPaceAlertTime < PACE_ALERT_COOLDOWN_MS || this.isSpeaking) return;
+      if (now - this.lastPaceAlertTime < COACH_CONFIG.cooldowns.paceAlertMs) return;
       this.lastPaceAlertTime = now;
     }
 
     if (priority === 'POSITIVE') {
-      if (now - this.lastPositiveTime < POSITIVE_COOLDOWN_MS || this.isSpeaking) return;
+      if (now - this.lastPositiveTime < COACH_CONFIG.cooldowns.positiveEncouragementMs) return;
       this.lastPositiveTime = now;
     }
 
     if (priority === 'TREND_WARNING') {
-      if (now - this.lastPaceTrendTime < PACE_TREND_COOLDOWN_MS || this.isSpeaking) return;
+      if (now - this.lastPaceTrendTime < COACH_CONFIG.cooldowns.paceTrendMs) return;
       this.lastPaceTrendTime = now;
     }
 
+    // 2. CẢNH BÁO NGUY HIỂM: Ngắt ngay mọi câu đang nói
     if (priority === 'CRITICAL_HR') {
-      if (now - this.lastHrAlertTime < HR_ALERT_COOLDOWN_MS) return;
+      if (now - this.lastHrAlertTime < COACH_CONFIG.cooldowns.hrDangerAlertMs) return;
       this.lastHrAlertTime = now;
+      this.currentSpeechSessionId++;
+      this.speechQueue = [];
       try {
         await Speech.stop();
       } catch {}
-    } else if (this.isSpeaking && priority !== 'MILESTONE') {
+    } else if (this.isSpeaking) {
+      // Đang có câu nói khác: Xếp hàng thay vì bỏ rơi
+      // Xóa câu cũ hơn 15s
+      this.speechQueue = this.speechQueue.filter((q) => now - q.timestamp <= COACH_CONFIG.speech.queueTtlMs);
+      if (this.speechQueue.length < COACH_CONFIG.speech.queueMaxItems) {
+        this.speechQueue.push({
+          id: ++this.queueCounter,
+          text,
+          priority,
+          earcon,
+          timestamp: now,
+        });
+      }
       return;
     }
 
+    await this.processSpeechText(text, priority, earcon);
+  }
+
+  private async processSpeechText(
+    text: string,
+    _priority: SpeechPriority,
+    earcon?: EarconType
+  ): Promise<void> {
     // Tách câu theo dấu chấm, phẩy, chấm hỏi, chấm than để runner tiếp nhận từng vế ngắn (2-3 từ)
     const chunks = text
       .split(/[,.!?;\n]+/)
@@ -342,9 +380,9 @@ class AudioCoachService {
         const success = await this.speakSingleChunk(chunks[i], sessionId);
         if (!success || this.currentSpeechSessionId !== sessionId) return;
 
-        // Dừng 0.75 giây giữa các dấu chấm, phẩy hoặc hết câu theo nhịp thở runner
+        // Dừng 0.75 giây giữa các dấu chấm, phẩy theo nhịp thở runner
         if (i < chunks.length - 1) {
-          await new Promise((r) => setTimeout(r, 750));
+          await new Promise((r) => setTimeout(r, COACH_CONFIG.speech.clausePauseMs));
         }
       }
     } catch {
@@ -353,6 +391,20 @@ class AudioCoachService {
       if (this.currentSpeechSessionId === sessionId) {
         this.isSpeaking = false;
         await this.setDuckingMode(false);
+
+        // Xử lý câu tiếp theo trong hàng đợi nếu còn
+        this.processNextInQueue();
+      }
+    }
+  }
+
+  private processNextInQueue(): void {
+    const now = Date.now();
+    this.speechQueue = this.speechQueue.filter((q) => now - q.timestamp <= COACH_CONFIG.speech.queueTtlMs);
+    if (this.speechQueue.length > 0) {
+      const next = this.speechQueue.shift();
+      if (next) {
+        this.speak(next.text, next.priority, next.earcon);
       }
     }
   }
@@ -360,15 +412,15 @@ class AudioCoachService {
   getHeartRateZone(hr: number | null): number | null {
     if (!hr || hr <= 0) return null;
     const lt = this.lactateThresholdHrBpm;
-    if (hr < Math.round(lt * 0.79)) return 1;
+    if (hr < Math.round(lt * 0.85)) return 1;
     if (hr <= Math.round(lt * 0.89)) return 2;
-    if (hr <= Math.round(lt * 0.96)) return 3;
-    if (hr <= lt) return 4;
+    if (hr <= Math.round(lt * 0.94)) return 3;
+    if (hr < lt) return 4;
     return 5;
   }
 
   formatPaceShort(paceSecPerKm: number | null): string {
-    if (!paceSecPerKm || !Number.isFinite(paceSecPerKm) || paceSecPerKm <= 0 || paceSecPerKm > 1200) {
+    if (!paceSecPerKm || !Number.isFinite(paceSecPerKm) || paceSecPerKm <= 0 || paceSecPerKm > 1800) {
       return 'chưa rõ';
     }
     const mins = Math.floor(paceSecPerKm / 60);
@@ -393,17 +445,21 @@ class AudioCoachService {
     }
   }
 
+  /**
+   * Báo split mỗi km đọc: pace km vừa xong, pace trung bình, và ETA dự kiến nếu có
+   */
   announceDistanceMilestone(
     distanceKm: number,
-    avgPaceSecPerKm: number,
-    _currentHr: number | null
+    splitPaceSecPerKm: number,
+    estimatedFinishTimeSec?: number | null
   ): void {
     const kmLabel = Number.isInteger(distanceKm)
       ? `Km ${distanceKm}`
       : `${distanceKm.toFixed(1).replace('.', ' phẩy ')} km`;
-    const paceStr = this.formatPaceShort(avgPaceSecPerKm);
+    const paceStr = this.formatPaceShort(splitPaceSecPerKm);
+    const etaStr = estimatedFinishTimeSec ? formatEtaVoiceWords(estimatedFinishTimeSec) : undefined;
 
-    this.speak(AUDIO_SCRIPTS.DISTANCE_SPLIT(kmLabel, paceStr), 'MILESTONE', 'good');
+    this.speak(AUDIO_SCRIPTS.DISTANCE_SPLIT(kmLabel, paceStr, etaStr), 'MILESTONE', 'good');
   }
 
   announceMotivationalCue(type: 'halfway' | '1km_left' | '500m_left'): void {
@@ -432,7 +488,7 @@ class AudioCoachService {
       return;
     }
 
-    // Khi quá chậm: Đánh giá thể trạng dựa trên nhịp tim!
+    // Khi quá chậm: Đánh giá thể trạng dựa trên nhịp tim
     const isFatigued = currentHr !== null && currentHr >= this.lactateThresholdHrBpm - 8;
     if (isFatigued) {
       this.speak(AUDIO_SCRIPTS.PACE_TOO_SLOW_FATIGUED, 'PACE_WARNING', 'warn');
@@ -447,7 +503,7 @@ class AudioCoachService {
     isNearLactateOrHardLimit: boolean
   ): void {
     const now = Date.now();
-    if (now - this.lastHrTrendTime < HR_TREND_COOLDOWN_MS) return;
+    if (now - this.lastHrTrendTime < COACH_CONFIG.cooldowns.hrTrendMs) return;
     this.lastHrTrendTime = now;
 
     if (isNearLactateOrHardLimit) {
@@ -463,7 +519,7 @@ class AudioCoachService {
     currentHr: number | null
   ): void {
     const now = Date.now();
-    if (now - this.lastPaceTrendTime < PACE_TREND_COOLDOWN_MS) return;
+    if (now - this.lastPaceTrendTime < COACH_CONFIG.cooldowns.paceTrendMs) return;
     this.lastPaceTrendTime = now;
 
     if (trend === 'SPIKE_FAST') {
@@ -491,36 +547,25 @@ class AudioCoachService {
   announceWorkoutCompleted(_workoutTitle: string): void {
     this.speak(AUDIO_SCRIPTS.WORKOUT_COMPLETED, 'MILESTONE', 'good');
   }
-  }
 
+  /**
+   * Metronome lặp không dùng setInterval:
+   * Tạo buffer WAV dài đúng 60/BPM giây và phát lặp bằng expo-av.
+   * Chạy ổn định tuyệt đối khi khóa màn hình iPhone.
+   */
   async startMetronome(bpm = 172): Promise<void> {
-    this.metronomeBpm = Math.max(155, Math.min(190, bpm));
+    this.metronomeBpm = Math.max(COACH_CONFIG.cadence.minBpm, Math.min(COACH_CONFIG.cadence.maxBpm, bpm));
     await this.stopMetronome();
 
     try {
       await this.initAudioSession();
-      if (!this.metronomeSound) {
-        const uri = createMetronomeTickDataUri(980, 18);
-        const { sound } = await Audio.Sound.createAsync(
-          { uri },
-          { volume: 0.35, shouldPlay: false }
-        );
-        this.metronomeSound = sound;
-      }
-
+      const uri = createMetronomeLoopDataUri(this.metronomeBpm);
+      const { sound } = await Audio.Sound.createAsync(
+        { uri },
+        { volume: 0.35, isLooping: true, shouldPlay: true }
+      );
+      this.metronomeSound = sound;
       this.isMetronomeActive = true;
-      const intervalMs = Math.round(60000 / this.metronomeBpm);
-
-      this.metronomeTimer = setInterval(async () => {
-        if (!this.isMetronomeActive || this.isSpeaking || !this.metronomeSound) {
-          return;
-        }
-        try {
-          await this.metronomeSound.replayAsync();
-        } catch {
-          // Bỏ qua
-        }
-      }, intervalMs);
     } catch {
       this.isMetronomeActive = false;
     }
@@ -528,14 +573,19 @@ class AudioCoachService {
 
   async stopMetronome(): Promise<void> {
     this.isMetronomeActive = false;
-    if (this.metronomeTimer) {
-      clearInterval(this.metronomeTimer);
-      this.metronomeTimer = null;
+    if (this.metronomeSound) {
+      try {
+        await this.metronomeSound.stopAsync();
+        await this.metronomeSound.unloadAsync();
+      } catch {
+        // Bỏ qua
+      }
+      this.metronomeSound = null;
     }
   }
 
   async updateMetronomeBpm(newBpm: number): Promise<void> {
-    this.metronomeBpm = Math.max(155, Math.min(185, newBpm));
+    this.metronomeBpm = Math.max(COACH_CONFIG.cadence.minBpm, Math.min(COACH_CONFIG.cadence.maxBpm, newBpm));
     if (this.isMetronomeActive) {
       await this.startMetronome(this.metronomeBpm);
     }
@@ -544,14 +594,6 @@ class AudioCoachService {
   async cleanup(): Promise<void> {
     await this.stopAll();
     await this.stopMetronome();
-    if (this.metronomeSound) {
-      try {
-        await this.metronomeSound.unloadAsync();
-      } catch {
-        // Bỏ qua
-      }
-      this.metronomeSound = null;
-    }
     for (const key of Object.keys(this.earconSounds) as EarconType[]) {
       try {
         await this.earconSounds[key]?.unloadAsync();

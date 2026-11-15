@@ -1,0 +1,17 @@
+node_modules/
+.expo/
+dist/
+web-build/
+*.orig.*
+.DS_Store
+*.ipa
+*.apk
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+.idea/
+.vscode/
+ios/build/
+android/build/
+android/app/build/
+.artifacts/
