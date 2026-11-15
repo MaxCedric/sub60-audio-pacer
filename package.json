@@ -2,7 +2,7 @@
   "name": "sub60-audio-pacer",
   "version": "1.0.0",
   "private": true,
-  "main": "node_modules/expo/AppEntry.js",
+  "main": "index.js",
   "scripts": {
     "start": "expo start --dev-client",
     "ios": "expo run:ios",
@@ -15,6 +15,7 @@
     "@react-native-async-storage/async-storage": "^3.1.1",
     "buffer": "^6.0.3",
     "expo": "~52.0.0",
+    "expo-asset": "~11.0.1",
     "expo-av": "~15.0.1",
     "expo-haptics": "~14.0.0",
     "expo-keep-awake": "~14.0.1",
@@ -30,6 +31,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
+    "@react-native-community/cli": "^21.0.0",
     "@types/jest": "^29.5.12",
     "@types/react": "~18.3.12",
     "babel-preset-expo": "~12.0.0",

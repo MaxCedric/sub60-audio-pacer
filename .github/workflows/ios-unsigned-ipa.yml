@@ -35,22 +35,17 @@ jobs:
           echo "NODE_BINARY=${NODE_PATH}" > ios/.xcode.env.local
           echo "Using node at: $NODE_PATH"
 
-      - name: Pre-bundle React Native JS (avoid Xcode bundle script failure)
+      - name: Pre-bundle React Native JS Bundle & Assets
         run: |
-          mkdir -p ios/main.jsbundle.d
-          NODE_BINARY=$(which node) node_modules/.bin/react-native bundle \
+          mkdir -p ios/assets
+          NODE_BINARY=$(which node) npx react-native bundle \
             --platform ios \
             --dev false \
-            --entry-file node_modules/expo/AppEntry.js \
+            --entry-file index.js \
             --bundle-output ios/main.jsbundle \
-            --assets-dest ios \
-            --minify true \
-            || true
-          if [ -f ios/main.jsbundle ]; then
-            echo "JS bundle created: $(wc -c < ios/main.jsbundle) bytes"
-          else
-            echo "Bundle skipped or failed — Xcode will bundle inline"
-          fi
+            --assets-dest ios/assets \
+            --minify true
+          echo "Verified JS bundle size: $(wc -c < ios/main.jsbundle) bytes"
 
       - name: Disable Code Signing & Strip Entitlements
         working-directory: ios
@@ -110,7 +105,6 @@ jobs:
             -configuration Release \
             -destination "generic/platform=iOS" \
             -derivedDataPath "$RUNNER_TEMP/xcode-build" \
-            SKIP_BUNDLING=NO \
             CODE_SIGN_STYLE="Manual" \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGN_ENTITLEMENTS="" \
@@ -163,6 +157,26 @@ jobs:
           fi
           if [ -z "$APP_PATH" ]; then echo "Error: .app not found!"; exit 1; fi
           echo "Packaging: $APP_PATH"
+
+          # 1. Guarantee main.jsbundle is embedded inside the .app
+          if [ ! -f "$APP_PATH/main.jsbundle" ] && [ -f ios/main.jsbundle ]; then
+            echo "Injecting pre-bundled main.jsbundle into $APP_PATH..."
+            cp ios/main.jsbundle "$APP_PATH/main.jsbundle"
+          fi
+
+          # 2. Guarantee assets are embedded inside the .app
+          if [ -d ios/assets ]; then
+            echo "Injecting assets into $APP_PATH..."
+            cp -r ios/assets/* "$APP_PATH/" 2>/dev/null || true
+          fi
+
+          # 3. Verify main.jsbundle exists (app will crash without it!)
+          if [ ! -f "$APP_PATH/main.jsbundle" ]; then
+            echo "FATAL ERROR: main.jsbundle was NOT created in $APP_PATH! App would crash on launch!"
+            exit 1
+          fi
+          echo "SUCCESS: main.jsbundle verified inside app ($(wc -c < "$APP_PATH/main.jsbundle") bytes)!"
+
           cp -r "$APP_PATH" ios/Payload/
           cd ios && zip -r -9 Sub60AudioPacer-unsigned.ipa Payload
 
