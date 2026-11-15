@@ -35,6 +35,16 @@ export interface WorkoutPlan {
   segments: WorkoutSegment[];
 }
 
+export type CheckInReason = 'SLOW_OR_TIRED' | 'HIGH_HR' | 'MANUAL';
+export type CheckInOption = 'PAIN' | 'FATIGUED' | 'STILL_OK';
+
+export interface CheckInState {
+  isActive: boolean;
+  reason: CheckInReason;
+  question: string;
+  timestamp: number;
+}
+
 interface GpsSample {
   latitude: number;
   longitude: number;
@@ -126,6 +136,25 @@ export function useRunningPacer(
   const [gpsSimulatedPaceSec, setGpsSimulatedPaceSec] = useState<number | null>(null);
   const [permissionError, setPermissionError] = useState<string | null>(null);
 
+  // PT Check-in tương tác & Chế độ Đi bộ phục hồi (khi đau chân / quá mệt)
+  const [checkInState, setCheckInState] = useState<CheckInState | null>(null);
+  const [isWalkingRecovery, setIsWalkingRecovery] = useState(false);
+  const isWalkingRecoveryRef = useRef(false);
+  const lastCheckInTimeRef = useRef(0);
+
+  useEffect(() => {
+    isWalkingRecoveryRef.current = isWalkingRecovery;
+  }, [isWalkingRecovery]);
+
+  // Tự động đóng câu hỏi check-in sau 20s nếu runner đang tập trung chạy
+  useEffect(() => {
+    if (!checkInState?.isActive) return;
+    const timer = setTimeout(() => {
+      setCheckInState(null);
+    }, 20000);
+    return () => clearTimeout(timer);
+  }, [checkInState]);
+
   const isPlanCompletedRef = useRef(false);
   const isInOpenRunRef = useRef(false);
   const isWorkoutCompletedRef = useRef(false);
@@ -178,7 +207,17 @@ export function useRunningPacer(
     gpsSimPaceRef.current = gpsSimulatedPaceSec;
   }, [gpsSimulatedPaceSec]);
 
-  const currentSegment: WorkoutSegment = isInOpenRun
+  const currentSegment: WorkoutSegment = isWalkingRecovery
+    ? {
+        id: 'walk-recovery',
+        name: 'Đi Bộ Hồi Phục (Bảo vệ chân)',
+        type: 'cooldown',
+        targetPaceMinSec: 540,
+        targetPaceMaxSec: 780,
+        maxHrBpm: 145,
+        voiceIntro: 'Đi bộ thả lỏng để hồi phục',
+      }
+    : isInOpenRun
     ? {
         id: 'open-run',
         name: 'Chạy Thêm Tự Do (Extra Miles)',
@@ -299,6 +338,45 @@ export function useRunningPacer(
     [isRunEnded, workout]
   );
 
+  const triggerCheckIn = useCallback((reason: CheckInReason = 'MANUAL') => {
+    const now = Date.now();
+    lastCheckInTimeRef.current = now;
+    setCheckInState({
+      isActive: true,
+      reason,
+      question: 'Bạn ổn không? Đau chân hay mệt quá?',
+      timestamp: now,
+    });
+    audioCoach.announceCheckIn();
+  }, []);
+
+  const dismissCheckIn = useCallback(() => {
+    setCheckInState(null);
+  }, []);
+
+  const respondToCheckIn = useCallback(async (option: CheckInOption) => {
+    setCheckInState(null);
+    lastCheckInTimeRef.current = Date.now();
+
+    if (option === 'PAIN') {
+      // Đau chân / Căng cơ: Dừng chạy, chuyển ngay sang đi bộ hồi phục
+      setIsWalkingRecovery(true);
+      await audioCoach.respondToCheckIn('PAIN');
+    } else if (option === 'FATIGUED') {
+      // Đang mệt / Đuối sức: Hạ áp lực pace, chuyển sang Sub 65 an toàn
+      setIsFallbackSub65Active(true);
+      await audioCoach.respondToCheckIn('FATIGUED');
+    } else {
+      // Vẫn ổn, đang ráng
+      await audioCoach.respondToCheckIn('STILL_OK');
+    }
+  }, []);
+
+  const resumeRunningFromWalk = useCallback(async () => {
+    setIsWalkingRecovery(false);
+    await audioCoach.speak('Bắt đầu chạy lại. Tăng tốc từ từ nhé.', 'POSITIVE', 'good');
+  }, []);
+
   const evaluatePtCoaching = useCallback(
     (nowMs: number, currentElapsedSec: number) => {
       if (isWorkoutCompletedRef.current || isPausedRef.current) return;
@@ -350,8 +428,9 @@ export function useRunningPacer(
         }
       }
 
-      // 2. GIÁM SÁT XU HƯỚNG PACE & XÁC NHẬN SỬA ĐÚNG (CHỈ ÁP DỤNG TRONG BÀI TẬP, KHÔNG ÉP PACE KHI CHẠY THÊM TỰ DO)
-      if (!isInOpenRunRef.current && activeSeg && activeSeg.type !== 'interval_rest') {
+      // 2. GIÁM SÁT XU HƯỚNG PACE & XÁC NHẬN SỬA ĐÚNG
+      // (Không ép pace khi: chạy thêm tự do HOẶC đang đi bộ hồi phục)
+      if (!isInOpenRunRef.current && !isWalkingRecoveryRef.current && activeSeg && activeSeg.type !== 'interval_rest') {
         const { minSec, maxSec } = getActiveTargetPaceRange(activeSeg);
         const fast6s = shortPace6sRef.current;
         const rolling = rollingPaceRef.current;
@@ -411,7 +490,12 @@ export function useRunningPacer(
             }
             if (paceDeviationStartMsRef.current && nowMs - paceDeviationStartMsRef.current >= 10000) {
               wasOutOfZoneRef.current = true;
-              audioCoach.announcePaceDeviation('TOO_SLOW', rolling, hr, minSec, maxSec);
+              // Nếu runner chạy chậm và đã hơn 90s chưa hỏi -> PT chủ động hiện câu hỏi kiểm tra thể trạng
+              if (nowMs - lastCheckInTimeRef.current >= 90000) {
+                triggerCheckIn('SLOW_OR_TIRED');
+              } else {
+                audioCoach.announcePaceDeviation('TOO_SLOW', rolling, hr, minSec, maxSec);
+              }
               paceDeviationStartMsRef.current = nowMs;
             }
           } else {
@@ -642,6 +726,10 @@ export function useRunningPacer(
     setIsPlanCompleted(false);
     setIsInOpenRun(false);
     setIsRunEnded(false);
+    setIsWalkingRecovery(false);
+    isWalkingRecoveryRef.current = false;
+    setCheckInState(null);
+    lastCheckInTimeRef.current = 0;
     setIsRunning(true);
     isRunningRef.current = true;
 
@@ -719,6 +807,9 @@ export function useRunningPacer(
     setIsPaused(false);
     setIsInOpenRun(false);
     setIsRunEnded(true);
+    setIsWalkingRecovery(false);
+    isWalkingRecoveryRef.current = false;
+    setCheckInState(null);
     setGpsSimulatedPaceSec(null);
 
     backgroundListeners.delete(handleLocationsUpdate);
@@ -776,6 +867,12 @@ export function useRunningPacer(
     isPlanCompleted,
     isInOpenRun,
     isRunEnded,
+    isWalkingRecovery,
+    checkInState,
+    triggerCheckIn,
+    dismissCheckIn,
+    respondToCheckIn,
+    resumeRunningFromWalk,
     elapsedSeconds,
     totalDistanceMeters,
     rollingPaceSecPerKm,

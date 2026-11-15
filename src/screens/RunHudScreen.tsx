@@ -41,6 +41,12 @@ export const RunHudScreen: React.FC<RunHudScreenProps> = ({
     isPlanCompleted,
     isInOpenRun,
     isRunEnded,
+    isWalkingRecovery,
+    checkInState,
+    triggerCheckIn,
+    dismissCheckIn,
+    respondToCheckIn,
+    resumeRunningFromWalk,
     elapsedSeconds,
     totalDistanceMeters,
     rollingPaceSecPerKm,
@@ -73,6 +79,8 @@ export const RunHudScreen: React.FC<RunHudScreenProps> = ({
   // Ambient Color Shift theo trạng thái chạy thực tế
   const ambientColor = isHrDangerActive
     ? '#FF3B5C'
+    : isWalkingRecovery
+    ? '#FF9800'
     : isInOpenRun
     ? '#00F0FF'
     : paceZoneStatus === 'IN_ZONE'
@@ -81,6 +89,8 @@ export const RunHudScreen: React.FC<RunHudScreenProps> = ({
 
   const statusText = isHrDangerActive
     ? 'QUÁ GIỚI HẠN TIM — ĐI BỘ NGAY'
+    : isWalkingRecovery
+    ? 'ĐI BỘ HỒI PHỤC (BẢO VỆ CHÂN)'
     : isInOpenRun
     ? 'CHẠY THÊM TỰ DO — THEO SỨC'
     : paceZoneStatus === 'IN_ZONE'
@@ -134,32 +144,123 @@ export const RunHudScreen: React.FC<RunHudScreenProps> = ({
         ) : null}
 
         {/* Thẻ chặng hiện tại + Progress bar Volt */}
-        <View style={[styles.segmentCard, isInOpenRun && styles.segmentCardOpenRun]}>
+        <View
+          style={[
+            styles.segmentCard,
+            isInOpenRun && styles.segmentCardOpenRun,
+            isWalkingRecovery && styles.segmentCardRecovery,
+          ]}
+        >
           <View style={styles.segmentTopRow}>
-            <Text style={[styles.segmentCounter, isInOpenRun && { color: '#00F0FF' }]}>
-              {isInOpenRun ? 'CHẠY THÊM TỰ DO' : `CHẶNG ${currentSegmentIndex + 1}/${totalSegments}`}
+            <Text
+              style={[
+                styles.segmentCounter,
+                isInOpenRun && { color: '#00F0FF' },
+                isWalkingRecovery && { color: '#FF9800' },
+              ]}
+            >
+              {isWalkingRecovery
+                ? 'ĐI BỘ HỒI PHỤC'
+                : isInOpenRun
+                ? 'CHẠY THÊM TỰ DO'
+                : `CHẶNG ${currentSegmentIndex + 1}/${totalSegments}`}
             </Text>
             <Text style={styles.segmentTarget}>
-              {isInOpenRun
+              {isWalkingRecovery
+                ? 'Thả lỏng cơ khớp • Đi bộ nhẹ'
+                : isInOpenRun
                 ? 'Theo thể lực • Max 178 bpm'
                 : `Mục tiêu: ${formatPaceDisplay(currentSegment.targetPaceMinSec)}–${formatPaceDisplay(currentSegment.targetPaceMaxSec)}`}
             </Text>
           </View>
           <Text style={styles.segmentName} numberOfLines={1}>
-            {isInOpenRun ? 'Đã hoàn thành giáo án — Tự do chạy tiếp nếu còn sức' : currentSegment.name}
+            {isWalkingRecovery
+              ? 'Tạm dừng chạy để tránh chấn thương — Hãy đi bộ thở đều'
+              : isInOpenRun
+              ? 'Đã hoàn thành giáo án — Tự do chạy tiếp nếu còn sức'
+              : currentSegment.name}
           </Text>
           <View style={styles.progressTrack}>
             <View
               style={[
                 styles.progressFill,
                 {
-                  width: isInOpenRun ? '100%' : `${segProgressPct}%`,
-                  backgroundColor: isInOpenRun ? '#00F0FF' : ambientColor,
+                  width: isInOpenRun || isWalkingRecovery ? '100%' : `${segProgressPct}%`,
+                  backgroundColor: isWalkingRecovery ? '#FF9800' : isInOpenRun ? '#00F0FF' : ambientColor,
                 },
               ]}
             />
           </View>
         </View>
+
+        {/* POPUP PT HỎI THĂM THỂ TRẠNG: TƯƠNG TÁC XỬ LÝ ĐAU CHÂN / MỆT MỎI */}
+        {checkInState?.isActive && (
+          <View style={styles.checkInCard}>
+            <View style={styles.checkInHeaderRow}>
+              <View style={styles.checkInTagBadge}>
+                <Text style={styles.checkInTagText}>🩺 PT HỎI THĂM THỂ TRẠNG</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => dismissCheckIn()}
+                style={styles.checkInCloseBtn}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Text style={styles.checkInCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.checkInTitle}>Bạn có đang đau chân hay mệt quá không?</Text>
+            <Text style={styles.checkInSubtitle}>
+              {checkInState.reason === 'SLOW_OR_TIRED'
+                ? 'PT thấy bạn đang chạy chậm lại so với mục tiêu. Bấm chọn để PT hỗ trợ ngay:'
+                : 'Chọn thể trạng hiện tại để PT điều chỉnh phương án an toàn:'}
+            </Text>
+
+            <View style={styles.checkInOptionsCol}>
+              <TouchableOpacity
+                style={[styles.checkInBtn, styles.checkInBtnDanger]}
+                onPress={() => {
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                  respondToCheckIn('PAIN');
+                }}
+              >
+                <Text style={styles.checkInBtnIcon}>🦵</Text>
+                <View style={styles.checkInBtnContent}>
+                  <Text style={styles.checkInBtnHeading}>ĐAU CHÂN / CĂNG CƠ</Text>
+                  <Text style={styles.checkInBtnDesc}>Dừng chạy ngay, chuyển sang đi bộ hồi phục</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.checkInBtn, styles.checkInBtnAmber]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  respondToCheckIn('FATIGUED');
+                }}
+              >
+                <Text style={styles.checkInBtnIcon}>😮‍💨</Text>
+                <View style={styles.checkInBtnContent}>
+                  <Text style={styles.checkInBtnHeading}>ĐANG MỆT / ĐUỐI SỨC</Text>
+                  <Text style={styles.checkInBtnDesc}>Chậm lại một nhịp, chuyển mục tiêu an toàn</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.checkInBtn, styles.checkInBtnVolt]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  respondToCheckIn('STILL_OK');
+                }}
+              >
+                <Text style={styles.checkInBtnIcon}>⚡</Text>
+                <View style={styles.checkInBtnContent}>
+                  <Text style={[styles.checkInBtnHeading, styles.textDark]}>VẪN ỔN, ĐANG RÁNG</Text>
+                  <Text style={[styles.checkInBtnDesc, styles.textDark]}>Giữ đều chân, tiếp tục bài chạy</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         {/* HERO CARD: ROLLING PACE với viền Ambient Glow */}
         <View style={[styles.heroPaceCard, { borderColor: ambientColor }]}>
@@ -183,6 +284,35 @@ export const RunHudScreen: React.FC<RunHudScreenProps> = ({
             </Text>
           </View>
         </View>
+
+        {/* NÚT THAO TÁC PT THỰC CHIẾN KHI ĐANG CHẠY */}
+        {isRunning && isWalkingRecovery ? (
+          <View style={styles.recoveryNoticeCard}>
+            <Text style={styles.recoveryNoticeTitle}>⚠️ ĐANG Ở CHẾ ĐỘ ĐI BỘ HỒI PHỤC</Text>
+            <Text style={styles.recoveryNoticeDesc}>
+              Đi bộ nhẹ nhàng để bảo vệ cơ khớp. Khi chân hết đau và sẵn sàng chạy tiếp, bấm nút dưới:
+            </Text>
+            <TouchableOpacity
+              style={styles.resumeRunBtn}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                resumeRunningFromWalk();
+              }}
+            >
+              <Text style={styles.resumeRunBtnText}>🏃‍♂️ ĐÃ HẾT ĐAU — TIẾP TỤC CHẠY</Text>
+            </TouchableOpacity>
+          </View>
+        ) : isRunning && !checkInState?.isActive ? (
+          <TouchableOpacity
+            style={styles.askPtBtn}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              triggerCheckIn('MANUAL');
+            }}
+          >
+            <Text style={styles.askPtBtnText}>🩺 BÁO PT: ĐAU CHÂN / MỆT QUÁ</Text>
+          </TouchableOpacity>
+        ) : null}
 
         {/* BENTO METRICS: Quãng đường & Nhịp tim + Zone */}
         <View style={styles.bentoRow}>
@@ -460,6 +590,153 @@ const styles = StyleSheet.create({
   segmentCardOpenRun: {
     borderColor: '#00F0FF',
     backgroundColor: '#091A24',
+  },
+  segmentCardRecovery: {
+    borderColor: '#FF9800',
+    backgroundColor: '#261607',
+  },
+  checkInCard: {
+    backgroundColor: '#121824',
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: '#00F0FF',
+    marginBottom: 14,
+    shadowColor: '#00F0FF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  checkInHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  checkInTagBadge: {
+    backgroundColor: '#092330',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: '#00F0FF',
+  },
+  checkInTagText: {
+    color: '#00F0FF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  checkInCloseBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#1E2534',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkInCloseText: {
+    color: '#94A3B8',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  checkInTitle: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  checkInSubtitle: {
+    color: '#94A3B8',
+    fontSize: 12,
+    lineHeight: 16,
+    marginBottom: 12,
+  },
+  checkInOptionsCol: {
+    gap: 8,
+  },
+  checkInBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1.5,
+  },
+  checkInBtnDanger: {
+    backgroundColor: '#2A1017',
+    borderColor: '#FF3B5C',
+  },
+  checkInBtnAmber: {
+    backgroundColor: '#2A1F0D',
+    borderColor: '#FFB020',
+  },
+  checkInBtnVolt: {
+    backgroundColor: '#1C290D',
+    borderColor: '#D2FF00',
+  },
+  checkInBtnIcon: {
+    fontSize: 22,
+    marginRight: 10,
+  },
+  checkInBtnContent: {
+    flex: 1,
+  },
+  checkInBtnHeading: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  checkInBtnDesc: {
+    color: '#94A3B8',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  recoveryNoticeCard: {
+    backgroundColor: '#261607',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1.5,
+    borderColor: '#FF9800',
+    marginVertical: 10,
+  },
+  recoveryNoticeTitle: {
+    color: '#FF9800',
+    fontSize: 14,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  recoveryNoticeDesc: {
+    color: '#E2E8F0',
+    fontSize: 12,
+    lineHeight: 16,
+    marginBottom: 10,
+  },
+  resumeRunBtn: {
+    backgroundColor: '#D2FF00',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  resumeRunBtnText: {
+    color: '#07090D',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  askPtBtn: {
+    backgroundColor: '#101726',
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#00F0FF',
+    marginVertical: 10,
+  },
+  askPtBtnText: {
+    color: '#00F0FF',
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   segmentTopRow: {
     flexDirection: 'row',
