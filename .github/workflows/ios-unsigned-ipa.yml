@@ -31,16 +31,14 @@ jobs:
 
       - name: Fix Node Binary Path for Xcode Build Scripts
         run: |
-          # Force Xcode to use CI's node binary (not any hardcoded local path)
           NODE_PATH=$(which node)
           echo "NODE_BINARY=${NODE_PATH}" > ios/.xcode.env.local
           echo "Using node at: $NODE_PATH"
-          cat ios/.xcode.env.local
 
       - name: Disable Code Signing & Strip Entitlements
         working-directory: ios
         run: |
-          # 1. Patch project.pbxproj — Manual signing, no team, no entitlements
+          # Patch project.pbxproj
           find . -name "project.pbxproj" -exec sed -i '' \
             -e 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' \
             -e 's/CODE_SIGN_IDENTITY = "iPhone Developer";/CODE_SIGN_IDENTITY = "";/g' \
@@ -49,13 +47,20 @@ jobs:
             -e 's/CODE_SIGN_ENTITLEMENTS = [^;]*;/CODE_SIGN_ENTITLEMENTS = "";/g' \
             {} +
 
-          # 2. Remove or empty any .entitlements files (they force signing checks)
+          # Empty all .entitlements files
           find . -name "*.entitlements" | while read f; do
             echo "Emptying entitlements: $f"
-            echo '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict></dict></plist>' > "$f"
+            cat > "$f" << 'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+</dict>
+</plist>
+PLIST
           done
 
-          # 3. Patch Podfile: disable signing on all CocoaPods targets
+          # Patch Podfile for pod signing bypass
           ruby -e '
           file = "Podfile"
           if File.exist?(file)
@@ -74,7 +79,7 @@ jobs:
             if content.include?("post_install do |installer|")
               content.sub!("post_install do |installer|", "post_install do |installer|\n" + signing_patch)
               File.write(file, content)
-              puts "Successfully patched Podfile."
+              puts "Patched Podfile."
             end
           end
           '
@@ -85,14 +90,16 @@ jobs:
         run: |
           WORKSPACE=$(ls -d *.xcworkspace | head -n 1)
           SCHEME=$(basename "$WORKSPACE" .xcworkspace)
-          echo "Building Workspace: $WORKSPACE with Scheme: $SCHEME"
-          set -o pipefail
+          echo "Building Workspace=$WORKSPACE Scheme=$SCHEME"
+
+          # Run xcodebuild, capture ALL output (stdout+stderr) to log file
+          # Print errors/warnings live, full log saved for artifact
           NODE_BINARY=$(which node) xcodebuild build \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
             -configuration Release \
             -destination "generic/platform=iOS" \
-            -derivedDataPath "build" \
+            -derivedDataPath "$RUNNER_TEMP/xcode-build" \
             CODE_SIGN_STYLE="Manual" \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGN_ENTITLEMENTS="" \
@@ -101,34 +108,47 @@ jobs:
             CODE_SIGNING_INJECT_BASE_ENTITLEMENTS=NO \
             DEVELOPMENT_TEAM="" \
             COMPILER_INDEX_STORE_ENABLE=NO \
-            2>&1 | tee /tmp/xcode_build.log; BUILD_EXIT=${PIPESTATUS[0]}
-          echo "===== LAST 300 LINES OF XCODE LOG ====="
-          tail -300 /tmp/xcode_build.log
-          cp /tmp/xcode_build.log xcode_build.log
-          exit $BUILD_EXIT
+            GCC_WARN_INHIBIT_ALL_WARNINGS=YES \
+            2>&1 | tee "$RUNNER_TEMP/xcode_build.log"
 
-      - name: Upload Xcode Build Log (for debugging)
-        if: failure()
+          BUILD_EXIT=${PIPESTATUS[0]}
+          echo "xcodebuild exit code: $BUILD_EXIT"
+
+          if [ $BUILD_EXIT -ne 0 ]; then
+            echo ""
+            echo "============================================================"
+            echo "BUILD FAILED — Filtering for errors:"
+            echo "============================================================"
+            grep -E "(error:|warning:|FAILED|CodeSign|ld:|linker|Undefined symbol)" "$RUNNER_TEMP/xcode_build.log" | tail -100
+            echo "============================================================"
+            echo "LAST 150 LINES:"
+            echo "============================================================"
+            tail -150 "$RUNNER_TEMP/xcode_build.log"
+            exit $BUILD_EXIT
+          fi
+
+      - name: Upload Xcode Build Log (debug artifact)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: xcode-build-log
-          path: ios/xcode_build.log
+          path: ${{ runner.temp }}/xcode_build.log
           if-no-files-found: warn
 
       - name: Package Payload into Sub60AudioPacer.ipa
-        working-directory: ios
         run: |
-          mkdir -p Payload
-          APP_PATH=$(find build/Build/Products/Release-iphoneos -name "*.app" | head -n 1)
+          mkdir -p ios/Payload
+          APP_PATH=$(find "$RUNNER_TEMP/xcode-build/Build/Products/Release-iphoneos" -name "*.app" | head -n 1)
           if [ -z "$APP_PATH" ]; then
-            APP_PATH=$(find build -name "*.app" | head -n 1)
+            APP_PATH=$(find "$RUNNER_TEMP/xcode-build" -name "*.app" | head -n 1)
           fi
           if [ -z "$APP_PATH" ]; then
-            echo "Error: .app file not found in build directory!"
+            echo "Error: .app not found!"
             exit 1
           fi
           echo "Found .app at: $APP_PATH"
-          cp -r "$APP_PATH" Payload/
+          cp -r "$APP_PATH" ios/Payload/
+          cd ios
           zip -r -9 Sub60AudioPacer-unsigned.ipa Payload
 
       - name: Upload .ipa Artifact for Sideloadly
