@@ -29,6 +29,14 @@ jobs:
       - name: Expo Prebuild iOS Native Project
         run: npx expo prebuild --platform ios --clean
 
+      - name: Fix Node Binary Path for Xcode Build Scripts
+        run: |
+          # Force Xcode to use CI's node binary (not any hardcoded local path)
+          NODE_PATH=$(which node)
+          echo "NODE_BINARY=${NODE_PATH}" > ios/.xcode.env.local
+          echo "Using node at: $NODE_PATH"
+          cat ios/.xcode.env.local
+
       - name: Disable Code Signing in Xcode Project & Pods
         working-directory: ios
         run: |
@@ -66,7 +74,7 @@ jobs:
           WORKSPACE=$(ls -d *.xcworkspace | head -n 1)
           SCHEME=$(basename "$WORKSPACE" .xcworkspace)
           echo "Building Workspace: $WORKSPACE with Scheme: $SCHEME"
-          xcodebuild build \
+          NODE_BINARY=$(which node) xcodebuild build \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
             -configuration Release \
