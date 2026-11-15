@@ -102,11 +102,18 @@ jobs:
             DEVELOPMENT_TEAM="" \
             COMPILER_INDEX_STORE_ENABLE=NO \
             2>&1 | tee /tmp/xcode_build.log; BUILD_EXIT=${PIPESTATUS[0]}
-          if [ $BUILD_EXIT -ne 0 ]; then
-            echo "===== XCODE BUILD FAILED — LAST 200 LINES OF LOG ====="
-            tail -200 /tmp/xcode_build.log
-            exit $BUILD_EXIT
-          fi
+          echo "===== LAST 300 LINES OF XCODE LOG ====="
+          tail -300 /tmp/xcode_build.log
+          cp /tmp/xcode_build.log xcode_build.log
+          exit $BUILD_EXIT
+
+      - name: Upload Xcode Build Log (for debugging)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcode-build-log
+          path: ios/xcode_build.log
+          if-no-files-found: warn
 
       - name: Package Payload into Sub60AudioPacer.ipa
         working-directory: ios
