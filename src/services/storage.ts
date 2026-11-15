@@ -51,6 +51,7 @@ const STORAGE_KEYS = {
   CHECKPOINTS: '@sub60_checkpoint_history',
   SELECTED_GOAL: '@sub60_selected_goal',
   AUTO_PAUSE_ENABLED: '@sub60_auto_pause_enabled',
+  GEMINI_API_KEY: '@sub60_gemini_api_key',
 };
 
 class StorageService {
@@ -202,6 +203,23 @@ class StorageService {
       return val !== 'false'; // Mặc định bật
     } catch {
       return true;
+    }
+  }
+
+  async getGeminiApiKey(): Promise<string> {
+    try {
+      const key = await AsyncStorage.getItem(STORAGE_KEYS.GEMINI_API_KEY);
+      return key || '';
+    } catch {
+      return '';
+    }
+  }
+
+  async saveGeminiApiKey(key: string): Promise<void> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.GEMINI_API_KEY, key.trim());
+    } catch {
+      // Bỏ qua
     }
   }
 }

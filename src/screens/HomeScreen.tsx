@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Modal,
   TextInput,
   Switch,
+  ActivityIndicator,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import trainingPlanData from '../data/trainingPlan.json';
@@ -27,7 +28,13 @@ import {
   formatPaceMinutesSeconds,
   PaceSegmentLike,
 } from '../logic/paces';
-import { storageService } from '../services/storage';
+import {
+  generateAdaptiveWorkout,
+  RunnerFeeling,
+  AiWorkoutRecommendation,
+  queryGeminiCoachingTip,
+} from '../logic/aiCoach';
+import { storageService, CompletedRunSession } from '../services/storage';
 
 interface HomeScreenProps {
   bleStatus: BleConnectionStatus;
@@ -65,29 +72,72 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const [editTest3kStr, setEditTest3kStr] = useState('21:08');
   const [editVo2MaxStr, setEditVo2MaxStr] = useState('35');
   const [editWeightStr, setEditWeightStr] = useState('73.7');
+  const [editGeminiKeyStr, setEditGeminiKeyStr] = useState('');
+
+  // AI Adaptive Coach State
+  const [selectedFeeling, setSelectedFeeling] = useState<RunnerFeeling>('NORMAL');
+  const [adaptiveRec, setAdaptiveRec] = useState<AiWorkoutRecommendation | null>(null);
+  const [recentSessions, setRecentSessions] = useState<CompletedRunSession[]>([]);
+  const [geminiApiKey, setGeminiApiKey] = useState<string>('');
+
+  // AI Interactive QA State
+  const [aiQuestion, setAiQuestion] = useState<string>('');
+  const [aiAnswer, setAiAnswer] = useState<string | null>(null);
+  const [isAiThinking, setIsAiThinking] = useState<boolean>(false);
 
   const { weeks } = trainingPlanData;
   const activeWeek = weeks[selectedWeekIndex] || weeks[0];
 
+  const updateAdaptiveRecommendation = useCallback(
+    (feeling: RunnerFeeling, p: AthleteProfile, sessions: CompletedRunSession[], goalId: GoalId) => {
+      const rec = generateAdaptiveWorkout(
+        feeling,
+        new Date(),
+        p,
+        sessions,
+        GOAL_TIERS[goalId]
+      );
+      setAdaptiveRec(rec);
+    },
+    []
+  );
+
   useEffect(() => {
-    storageService.getAthleteProfile().then((p) => {
+    Promise.all([
+      storageService.getAthleteProfile(),
+      storageService.getSelectedGoal(),
+      storageService.getRunSessions(),
+      storageService.getGeminiApiKey(),
+    ]).then(([p, g, sessions, apiKey]) => {
       setProfile(p);
       audioCoach.setLactateThresholdHr(p.lactateThresholdHrBpm);
+      setSelectedGoalId(g);
+      setRecentSessions(sessions);
+      setGeminiApiKey(apiKey);
+
       setEditLtPaceStr(formatSecondsToMmSs(p.lactateThresholdPaceSecPerKm));
       setEditLtHrStr(p.lactateThresholdHrBpm.toString());
       setEditMaxHrStr(p.maxHrBpm.toString());
       setEditTest3kStr(formatSecondsToMmSs(p.fastest3kSec));
       setEditVo2MaxStr(p.vo2Max.toString());
       setEditWeightStr(p.weightKg.toString());
-    });
+      setEditGeminiKeyStr(apiKey);
 
-    storageService.getSelectedGoal().then((g) => setSelectedGoalId(g));
-  }, []);
+      updateAdaptiveRecommendation(selectedFeeling, p, sessions, g);
+    });
+  }, [selectedFeeling, updateAdaptiveRecommendation]);
+
+  const handleSelectFeeling = (feeling: RunnerFeeling) => {
+    Haptics.selectionAsync();
+    setSelectedFeeling(feeling);
+    updateAdaptiveRecommendation(feeling, profile, recentSessions, selectedGoalId);
+  };
 
   const handleSelectGoal = (goalId: GoalId) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSelectedGoalId(goalId);
     storageService.saveSelectedGoal(goalId);
+    updateAdaptiveRecommendation(selectedFeeling, profile, recentSessions, goalId);
   };
 
   const handleAdjustLtHr = (delta: number) => {
@@ -100,6 +150,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     setProfile(nextProfile);
     audioCoach.setLactateThresholdHr(nextLtHr);
     storageService.saveAthleteProfile(nextProfile);
+    updateAdaptiveRecommendation(selectedFeeling, nextProfile, recentSessions, selectedGoalId);
   };
 
   const handleSaveProfileModal = async () => {
@@ -124,7 +175,47 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     setProfile(updated);
     audioCoach.setLactateThresholdHr(updated.lactateThresholdHrBpm);
     await storageService.saveAthleteProfile(updated);
+    await storageService.saveGeminiApiKey(editGeminiKeyStr);
+    setGeminiApiKey(editGeminiKeyStr);
+
     setIsEditProfileVisible(false);
+    updateAdaptiveRecommendation(selectedFeeling, updated, recentSessions, selectedGoalId);
+  };
+
+  const handleAskAiCoach = async () => {
+    if (!aiQuestion.trim()) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setIsAiThinking(true);
+    setAiAnswer(null);
+
+    // Thử gọi Gemini AI nếu có key
+    if (geminiApiKey.trim()) {
+      const tip = await queryGeminiCoachingTip(geminiApiKey, aiQuestion, profile);
+      if (tip) {
+        setAiAnswer(tip);
+        setIsAiThinking(false);
+        return;
+      }
+    }
+
+    // Fallback: Smart Local Engine trả lời tức thì
+    setTimeout(() => {
+      const q = aiQuestion.toLowerCase();
+      let ans = '';
+      if (q.includes('mỏi') || q.includes('đau') || q.includes('ê')) {
+        ans = `PT khuyên: Nếu mỏi cơ nhẹ, hãy khởi động kỹ và chỉ chạy phục hồi Vùng 1/Vùng 2 dưới 150 bpm trong 20 phút. Nếu đau nhói khớp gối hoặc cổ chân, hãy nghỉ ngơi và chườm lạnh.`;
+      } else if (q.includes('nước') || q.includes('ăn')) {
+        ans = `Uống 150–200ml nước ấm trước chạy 15 phút. Nếu chạy cự ly trên 6 km, cứ mỗi 2,5 km nhấp một ngụm nhỏ để tránh tim đập nhanh do thiếu nước.`;
+      } else if (q.includes('cầu lông') || q.includes('thứ 3') || q.includes('t3')) {
+        ans = `Thứ Ba bạn đã có lịch cầu lông cường độ cao. Không nên chạy nặng vào thứ 3 và thứ 4 để bảo vệ dây chằng và tránh quá tải trước bài chạy chất lượng thứ Năm.`;
+      } else if (q.includes('sub 60') || q.includes('pace') || q.includes('tốc độ')) {
+        ans = `Để đạt 10 km Sub 60 (pace 5'58"/km), 80% thời lượng tuần hãy chạy chậm ở Zone 2 (8'16"–9'01"/km) để xây mao mạch. Đừng nóng vội chạy nhanh mỗi ngày!`;
+      } else {
+        ans = `PT ghi nhận câu hỏi của bạn. Hôm nay cơ thể bạn đang thích hợp cho bài tập ${adaptiveRec?.workout.title || 'Easy Z2'}. Hãy giữ sải chân ngắn, guồng chân 172 SPM và hít thở đều đặn!`;
+      }
+      setAiAnswer(ans);
+      setIsAiThinking(false);
+    }, 400);
   };
 
   const isBleConnected = bleStatus === 'CONNECTED' || bleStatus === 'SIMULATED';
@@ -162,7 +253,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               setIsEditProfileVisible(true);
             }}
           >
-            <Text style={styles.editProfileBtnText}>⚙️ CHỈ SỐ</Text>
+            <Text style={styles.editProfileBtnText}>⚙️ CHỈ SỐ & AI</Text>
           </TouchableOpacity>
         </View>
 
@@ -284,6 +375,140 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <View style={styles.riegelNoteBox}>
             <Text style={styles.riegelNoteIcon}>ℹ️</Text>
             <Text style={styles.riegelNoteText}>{RIEGEL_NOTE_TEXT}</Text>
+          </View>
+        </View>
+
+        {/* ======================================================== */}
+        {/* SECTION MỚI: CHẠY NGẪU HỨNG (AI PT TỰ ĐỘNG SINH BÀI TẬP) */}
+        {/* ======================================================== */}
+        <View style={styles.adaptiveSection}>
+          <View style={styles.adaptiveHeader}>
+            <View style={styles.adaptiveTitleRow}>
+              <Text style={styles.adaptiveSectionTitle}>⚡ HỨNG LÊN LÀ CHẠY — AI PT ĐỀ XUẤT</Text>
+              <View style={styles.aiBadge}>
+                <Text style={styles.aiBadgeText}>AI ADAPTIVE</Text>
+              </View>
+            </View>
+            <Text style={styles.adaptiveSectionSub}>
+              Tự động phân tích lịch tuần (T3 Cầu lông, T5 Chất lượng, T7 Chạy dài) và thể lực tuần này để suy nghĩ bài chạy thích hợp nhất cho bạn.
+            </Text>
+          </View>
+
+          {/* Context Tích Lũy Tuần Này */}
+          {adaptiveRec?.weeklyContextSummary ? (
+            <View style={styles.contextSummaryChip}>
+              <Text style={styles.contextSummaryText}>📊 {adaptiveRec.weeklyContextSummary}</Text>
+            </View>
+          ) : null}
+
+          {/* Selector Cảm Giác Thể Trạng Hôm Nay */}
+          <Text style={styles.feelingPromptText}>Hôm nay bạn cảm thấy thế nào?</Text>
+          <View style={styles.feelingPillsRow}>
+            {[
+              { id: 'FRESH_READY', label: '⚡ Sung sức' },
+              { id: 'NORMAL', label: '😊 Bình thường' },
+              { id: 'FATIGUED_SORE', label: '😮‍💨 Chân mỏi' },
+              { id: 'LIMITED_TIME', label: '⏱️ Gấp 20p' },
+            ].map((f) => {
+              const isSelected = selectedFeeling === f.id;
+              return (
+                <TouchableOpacity
+                  key={f.id}
+                  style={[styles.feelingPill, isSelected && styles.feelingPillActive]}
+                  onPress={() => handleSelectFeeling(f.id as RunnerFeeling)}
+                >
+                  <Text style={[styles.feelingPillText, isSelected && styles.textDark]}>
+                    {f.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* Thẻ Bài Tập AI Đề Xuất */}
+          {adaptiveRec ? (
+            <View style={styles.adaptiveCard}>
+              <View style={styles.adaptiveCardTop}>
+                <View style={styles.recTypeBadge}>
+                  <Text style={styles.recTypeBadgeText}>{adaptiveRec.recommendedType}</Text>
+                </View>
+                <Text style={styles.adaptiveDistText}>{adaptiveRec.workout.totalDistanceKm} KM</Text>
+              </View>
+
+              <Text style={styles.adaptiveWorkoutTitle}>{adaptiveRec.workout.title}</Text>
+              <Text style={styles.adaptiveReasonText}>{adaptiveRec.reasoning}</Text>
+
+              <View style={styles.aiQuoteBox}>
+                <Text style={styles.aiQuoteIcon}>💡</Text>
+                <Text style={styles.aiQuoteText}>{adaptiveRec.aiSuggestedQuote}</Text>
+              </View>
+
+              {/* Các chặng tự động của bài tập */}
+              <View style={styles.segmentsBox}>
+                {adaptiveRec.workout.segments.map((seg) => {
+                  const resolved = resolvePaceRange(seg as PaceSegmentLike, profile, currentGoal);
+                  return (
+                    <View key={seg.id} style={styles.segRow}>
+                      <Text style={styles.segName} numberOfLines={1}>
+                        {seg.name}
+                      </Text>
+                      <Text style={styles.segTarget}>{resolved.displayText}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+
+              <TouchableOpacity
+                style={styles.ctaAdaptiveBtn}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                  onSelectWorkout(adaptiveRec.workout);
+                }}
+              >
+                <Text style={styles.ctaAdaptiveBtnText}>CHẠY BÀI NÀY NGAY VỚI AUDIO COACH</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
+          {/* Khối Hỏi Đáp Trực Tuyến Với AI Huấn Luyện Viên */}
+          <View style={styles.aiQaCard}>
+            <View style={styles.aiQaHeader}>
+              <Text style={styles.aiQaTitle}>✨ HỎI Ý KIẾN AI HUẤN LUYỆN VIÊN</Text>
+              <Text style={styles.aiQaProviderTag}>
+                {geminiApiKey.trim() ? 'GEMINI 1.5 FLASH LIVE' : 'SMART OFFLINE AI'}
+              </Text>
+            </View>
+            <Text style={styles.aiQaSub}>
+              Hỏi nhanh thể trạng, dinh dưỡng hay cách chạy trước khi xỏ giày ra đường:
+            </Text>
+
+            <View style={styles.aiInputRow}>
+              <TextInput
+                style={styles.aiTextInput}
+                value={aiQuestion}
+                onChangeText={setAiQuestion}
+                placeholder="VD: Chân hơi mỏi cơ bắp chuối thì chạy thế nào?"
+                placeholderTextColor="#64748B"
+              />
+              <TouchableOpacity
+                style={styles.aiSendBtn}
+                onPress={handleAskAiCoach}
+                disabled={isAiThinking}
+              >
+                {isAiThinking ? (
+                  <ActivityIndicator size="small" color="#07090D" />
+                ) : (
+                  <Text style={styles.aiSendBtnText}>HỎI</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            {aiAnswer ? (
+              <View style={styles.aiAnswerBox}>
+                <Text style={styles.aiAnswerTitle}>🤖 LỜI KHUYÊN TỪ AI PT:</Text>
+                <Text style={styles.aiAnswerText}>{aiAnswer}</Text>
+              </View>
+            ) : null}
           </View>
         </View>
 
@@ -414,7 +639,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         })}
       </ScrollView>
 
-      {/* Modal Cập Nhật Chỉ Số VĐV */}
+      {/* Modal Cập Nhật Chỉ Số VĐV & Cấu hình AI Key */}
       <Modal
         visible={isEditProfileVisible}
         animationType="slide"
@@ -424,7 +649,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         <SafeAreaView style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>CẬP NHẬT CHỈ SỐ VẬN ĐỘNG VIÊN</Text>
+              <Text style={styles.modalTitle}>CẬP NHẬT CHỈ SỐ & CẤU HÌNH AI</Text>
               <TouchableOpacity
                 onPress={() => setIsEditProfileVisible(false)}
                 style={styles.modalCloseBtn}
@@ -507,6 +732,22 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   placeholderTextColor="#64748B"
                   keyboardType="numbers-and-punctuation"
                 />
+              </View>
+
+              <View style={styles.formRow}>
+                <Text style={styles.formLabel}>Google Gemini API Key (Tùy chọn, miễn phí tại aistudio.google.com):</Text>
+                <TextInput
+                  style={styles.formInput}
+                  value={editGeminiKeyStr}
+                  onChangeText={setEditGeminiKeyStr}
+                  placeholder="Dán Gemini API Key nếu muốn hỏi đáp LLM"
+                  placeholderTextColor="#64748B"
+                  autoCapitalize="none"
+                  secureTextEntry={false}
+                />
+                <Text style={styles.formSubHint}>
+                  Nếu để trống, app sẽ dùng Trợ lý AI Offline thông minh tích hợp sẵn, không tốn phí và không cần mạng.
+                </Text>
               </View>
 
               <TouchableOpacity
@@ -596,7 +837,7 @@ const styles = StyleSheet.create({
   },
   editProfileBtnText: {
     color: '#00F0FF',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '800',
   },
   bentoRow: {
@@ -850,6 +1091,246 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     fontWeight: '500',
   },
+  adaptiveSection: {
+    backgroundColor: '#10141D',
+    borderWidth: 1.5,
+    borderColor: '#00F0FF55',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 20,
+  },
+  adaptiveHeader: {
+    marginBottom: 10,
+  },
+  adaptiveTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  adaptiveSectionTitle: {
+    color: '#00F0FF',
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  aiBadge: {
+    backgroundColor: '#00F0FF22',
+    borderWidth: 1,
+    borderColor: '#00F0FF',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  aiBadgeText: {
+    color: '#00F0FF',
+    fontSize: 9,
+    fontWeight: '900',
+  },
+  adaptiveSectionSub: {
+    color: '#94A3B8',
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  contextSummaryChip: {
+    backgroundColor: '#07090D',
+    borderWidth: 1,
+    borderColor: '#1E2534',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  contextSummaryText: {
+    color: '#D2FF00',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  feelingPromptText: {
+    color: '#F8FAFC',
+    fontSize: 12,
+    fontWeight: '800',
+    marginBottom: 8,
+  },
+  feelingPillsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 14,
+  },
+  feelingPill: {
+    flex: 1,
+    backgroundColor: '#07090D',
+    borderWidth: 1,
+    borderColor: '#1E2534',
+    paddingVertical: 8,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  feelingPillActive: {
+    backgroundColor: '#00F0FF',
+    borderColor: '#00F0FF',
+  },
+  feelingPillText: {
+    color: '#94A3B8',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  textDark: {
+    color: '#07090D',
+  },
+  adaptiveCard: {
+    backgroundColor: '#0A0D14',
+    borderWidth: 1,
+    borderColor: '#1E2534',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 14,
+  },
+  adaptiveCardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  recTypeBadge: {
+    backgroundColor: '#D2FF0022',
+    borderWidth: 1,
+    borderColor: '#D2FF00',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  recTypeBadgeText: {
+    color: '#D2FF00',
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  adaptiveDistText: {
+    color: '#00F0FF',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  adaptiveWorkoutTitle: {
+    color: '#F8FAFC',
+    fontSize: 16,
+    fontWeight: '900',
+    marginBottom: 6,
+  },
+  adaptiveReasonText: {
+    color: '#94A3B8',
+    fontSize: 12,
+    lineHeight: 17,
+    marginBottom: 10,
+  },
+  aiQuoteBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#10141D',
+    borderRadius: 8,
+    padding: 8,
+    gap: 8,
+    marginBottom: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: '#00F0FF',
+  },
+  aiQuoteIcon: {
+    fontSize: 14,
+  },
+  aiQuoteText: {
+    color: '#F8FAFC',
+    fontSize: 11,
+    fontStyle: 'italic',
+    flex: 1,
+  },
+  ctaAdaptiveBtn: {
+    backgroundColor: '#00F0FF',
+    paddingVertical: 13,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  ctaAdaptiveBtnText: {
+    color: '#07090D',
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  aiQaCard: {
+    backgroundColor: '#0A0D14',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#1E2534',
+  },
+  aiQaHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  aiQaTitle: {
+    color: '#D2FF00',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  aiQaProviderTag: {
+    color: '#64748B',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  aiQaSub: {
+    color: '#94A3B8',
+    fontSize: 11,
+    lineHeight: 15,
+    marginBottom: 8,
+  },
+  aiInputRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  aiTextInput: {
+    flex: 1,
+    backgroundColor: '#07090D',
+    borderWidth: 1,
+    borderColor: '#1E2534',
+    borderRadius: 10,
+    color: '#F8FAFC',
+    fontSize: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  aiSendBtn: {
+    backgroundColor: '#D2FF00',
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 10,
+  },
+  aiSendBtnText: {
+    color: '#07090D',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  aiAnswerBox: {
+    backgroundColor: '#10141D',
+    borderRadius: 10,
+    padding: 10,
+    marginTop: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#D2FF00',
+  },
+  aiAnswerTitle: {
+    color: '#D2FF00',
+    fontSize: 10,
+    fontWeight: '900',
+    marginBottom: 2,
+  },
+  aiAnswerText: {
+    color: '#F8FAFC',
+    fontSize: 12,
+    lineHeight: 17,
+  },
   sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1093,6 +1574,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     marginBottom: 4,
+  },
+  formSubHint: {
+    color: '#64748B',
+    fontSize: 10,
+    lineHeight: 14,
+    marginTop: 4,
   },
   formInput: {
     backgroundColor: '#07090D',

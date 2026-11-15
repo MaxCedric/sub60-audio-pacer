@@ -162,6 +162,16 @@ sub60-audio-pacer/
    - Cho phép nhập thang đo gắng sức RPE (1–10) và lưu trữ 3 dòng: *Làm tốt*, *Chưa được*, *Cách sửa buổi tới*.
 6. **Dự Đoán Thời Gian Về Đích (ETA Milestone):**
    - Ở mỗi mốc 1 km, huấn luyện viên thông báo cự ly đã chạy, nhịp tim hiện tại, pace trung bình và thời gian về đích dự kiến dựa trên phong độ 2 km gần nhất.
+7. **Huấn Luyện Viên AI Thích Ứng & Hỏi Đáp Trực Tuyến (AI Adaptive Coach & Gemini Integration):**
+   - **Chạy ngẫu hứng thông minh (On-Demand Run):** Bất cứ khi nào có hứng chạy đột xuất, AI PT tự động phân tích:
+     - Ngày trong tuần và lịch cố định (Thứ 3 cầu lông, Thứ 5 chất lượng, Thứ 7 chạy dài).
+     - Khối lượng km và số buổi đã tích lũy trong tuần này.
+     - Thời gian cách buổi chạy gần nhất.
+     - Cảm giác thể trạng thực tế người dùng chọn: *⚡ Sung sức*, *😊 Bình thường*, *😮‍💨 Chân mỏi*, *⏱️ Gấp 20 phút*.
+     - Tự động sinh ngay bài chạy tương ứng (Easy hồi phục, Easy kèm Strides, Tempo thử thách, Quick Shakeout 20 phút) kèm giải thích lý do, câu quote PT và nút bấm chạy ngay với Audio Coach!
+   - **Tích hợp Trợ lý AI Đa Tầng:**
+     - *Smart Offline Engine*: Chạy 100% offline nội bộ trên máy, không cần mạng, không tốn phí, phản hồi tức thì.
+     - *Tùy chọn Google Gemini 1.5 Flash*: Cho phép dán API Key miễn phí từ [Google AI Studio](https://aistudio.google.com/) trong mục cài đặt để hỏi đáp trực tiếp các câu hỏi sinh lý, dinh dưỡng, chấn thương trước khi chạy.
 
 ---
 
