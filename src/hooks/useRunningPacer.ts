@@ -118,12 +118,16 @@ export function useRunningPacer(
   const [isMetronomeOn, setIsMetronomeOn] = useState(false);
   const [metronomeBpm, setMetronomeBpm] = useState(172);
   const [isFallbackSub65Active, setIsFallbackSub65Active] = useState(false);
-  const [isCompleted, setIsCompleted] = useState(false);
+  const [isPlanCompleted, setIsPlanCompleted] = useState(false);
+  const [isInOpenRun, setIsInOpenRun] = useState(false);
+  const [isRunEnded, setIsRunEnded] = useState(false);
   const [isHrDangerActive, setIsHrDangerActive] = useState(false);
   const [paceZoneStatus, setPaceZoneStatus] = useState<'IN_ZONE' | 'TOO_FAST' | 'TOO_SLOW'>('IN_ZONE');
   const [gpsSimulatedPaceSec, setGpsSimulatedPaceSec] = useState<number | null>(null);
   const [permissionError, setPermissionError] = useState<string | null>(null);
 
+  const isPlanCompletedRef = useRef(false);
+  const isInOpenRunRef = useRef(false);
   const isWorkoutCompletedRef = useRef(false);
   const announcedHalfwayRef = useRef(false);
   const announced1KmLeftRef = useRef(false);
@@ -174,8 +178,17 @@ export function useRunningPacer(
     gpsSimPaceRef.current = gpsSimulatedPaceSec;
   }, [gpsSimulatedPaceSec]);
 
-  const currentSegment: WorkoutSegment =
-    workout.segments[currentSegmentIndex] || workout.segments[workout.segments.length - 1];
+  const currentSegment: WorkoutSegment = isInOpenRun
+    ? {
+        id: 'open-run',
+        name: 'Chạy Thêm Tự Do (Extra Miles)',
+        type: 'cooldown',
+        targetPaceMinSec: 360,
+        targetPaceMaxSec: 600,
+        maxHrBpm: 178,
+        voiceIntro: 'Tiếp tục chạy tự do theo cảm giác cơ thể',
+      }
+    : workout.segments[currentSegmentIndex] || workout.segments[workout.segments.length - 1];
 
   const getActiveTargetPaceRange = useCallback((seg: WorkoutSegment): { minSec: number; maxSec: number } => {
     if (isFallbackSub65Ref.current && (seg.type === 'main' || seg.type === 'race_split')) {
@@ -219,7 +232,15 @@ export function useRunningPacer(
 
   const evaluateSegmentProgression = useCallback(
     (currentTotalMeters: number, currentElapsedSec: number) => {
-      if (isWorkoutCompletedRef.current) return;
+      if (isRunEnded) return;
+      if (isInOpenRunRef.current) {
+        // Runner đang chạy thêm tự do: tính quãng đường và thời gian vượt mức giáo án
+        const totalPlanM = workout.totalDistanceKm * 1000;
+        const extraM = Math.max(0, currentTotalMeters - totalPlanM);
+        setSegmentProgressMeters(extraM);
+        return;
+      }
+
       const idx = segmentIndexRef.current;
       const seg = workout.segments[idx];
       if (!seg) return;
@@ -265,15 +286,17 @@ export function useRunningPacer(
 
           const nextSeg = workout.segments[nextIdx];
           audioCoach.announceSegmentTransition(nextSeg.voiceIntro);
-        } else {
-          // CHẶN LẶP: Đánh dấu đã hoàn thành và chỉ phát âm báo đúng 1 lần duy nhất!
-          isWorkoutCompletedRef.current = true;
-          setIsCompleted(true);
+        } else if (!isPlanCompletedRef.current) {
+          // HOÀN THÀNH BÀI TẬP -> KHÔNG DỪNG ÉP! CHUYỂN SANG CHẾ ĐỘ CHẠY THÊM TỰ DO
+          isPlanCompletedRef.current = true;
+          isInOpenRunRef.current = true;
+          setIsPlanCompleted(true);
+          setIsInOpenRun(true);
           audioCoach.announceWorkoutCompleted(workout.title);
         }
       }
     },
-    [workout]
+    [isRunEnded, workout]
   );
 
   const evaluatePtCoaching = useCallback(
@@ -327,8 +350,8 @@ export function useRunningPacer(
         }
       }
 
-      // 2. GIÁM SÁT XU HƯỚNG PACE & XÁC NHẬN SỬA ĐÚNG
-      if (activeSeg && activeSeg.type !== 'interval_rest') {
+      // 2. GIÁM SÁT XU HƯỚNG PACE & XÁC NHẬN SỬA ĐÚNG (CHỈ ÁP DỤNG TRONG BÀI TẬP, KHÔNG ÉP PACE KHI CHẠY THÊM TỰ DO)
+      if (!isInOpenRunRef.current && activeSeg && activeSeg.type !== 'interval_rest') {
         const { minSec, maxSec } = getActiveTargetPaceRange(activeSeg);
         const fast6s = shortPace6sRef.current;
         const rolling = rollingPaceRef.current;
@@ -610,11 +633,15 @@ export function useRunningPacer(
     setSegmentElapsedSeconds(0);
     setIsPaused(false);
     isPausedRef.current = false;
+    isPlanCompletedRef.current = false;
+    isInOpenRunRef.current = false;
     isWorkoutCompletedRef.current = false;
     announcedHalfwayRef.current = false;
     announced1KmLeftRef.current = false;
     announced500mLeftRef.current = false;
-    setIsCompleted(false);
+    setIsPlanCompleted(false);
+    setIsInOpenRun(false);
+    setIsRunEnded(false);
     setIsRunning(true);
     isRunningRef.current = true;
 
@@ -684,11 +711,14 @@ export function useRunningPacer(
 
   const stopRun = useCallback(async () => {
     isWorkoutCompletedRef.current = true;
+    isPlanCompletedRef.current = true;
+    isInOpenRunRef.current = false;
     isRunningRef.current = false;
     isPausedRef.current = false;
     setIsRunning(false);
     setIsPaused(false);
-    setIsCompleted(true);
+    setIsInOpenRun(false);
+    setIsRunEnded(true);
     setGpsSimulatedPaceSec(null);
 
     backgroundListeners.delete(handleLocationsUpdate);
@@ -743,7 +773,9 @@ export function useRunningPacer(
   return {
     isRunning,
     isPaused,
-    isCompleted,
+    isPlanCompleted,
+    isInOpenRun,
+    isRunEnded,
     elapsedSeconds,
     totalDistanceMeters,
     rollingPaceSecPerKm,

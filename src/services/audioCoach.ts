@@ -404,7 +404,7 @@ class AudioCoachService {
 
   announceWorkoutCompleted(_workoutTitle: string): void {
     this.speak(
-      'Tuyệt vời! Bạn đã hoàn thành xuất sắc bài chạy hôm nay. Đi bộ thả lỏng và nghỉ ngơi nhé!',
+      'Tuyệt vời! Bạn đã hoàn thành bài tập mục tiêu. Nếu còn sức, bạn cứ tiếp tục chạy tự do nhé!',
       'MILESTONE',
       'good'
     );

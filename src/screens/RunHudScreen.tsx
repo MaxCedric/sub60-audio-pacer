@@ -38,7 +38,9 @@ export const RunHudScreen: React.FC<RunHudScreenProps> = ({
   const {
     isRunning,
     isPaused,
-    isCompleted,
+    isPlanCompleted,
+    isInOpenRun,
+    isRunEnded,
     elapsedSeconds,
     totalDistanceMeters,
     rollingPaceSecPerKm,
@@ -71,12 +73,16 @@ export const RunHudScreen: React.FC<RunHudScreenProps> = ({
   // Ambient Color Shift theo trạng thái chạy thực tế
   const ambientColor = isHrDangerActive
     ? '#FF3B5C'
+    : isInOpenRun
+    ? '#00F0FF'
     : paceZoneStatus === 'IN_ZONE'
     ? '#D2FF00'
     : '#FFB020';
 
   const statusText = isHrDangerActive
     ? 'QUÁ GIỚI HẠN TIM — ĐI BỘ NGAY'
+    : isInOpenRun
+    ? 'CHẠY THÊM TỰ DO — THEO SỨC'
     : paceZoneStatus === 'IN_ZONE'
     ? 'ĐÚNG NHỊP MỤC TIÊU'
     : paceZoneStatus === 'TOO_FAST'
@@ -128,21 +134,30 @@ export const RunHudScreen: React.FC<RunHudScreenProps> = ({
         ) : null}
 
         {/* Thẻ chặng hiện tại + Progress bar Volt */}
-        <View style={styles.segmentCard}>
+        <View style={[styles.segmentCard, isInOpenRun && styles.segmentCardOpenRun]}>
           <View style={styles.segmentTopRow}>
-            <Text style={styles.segmentCounter}>
-              CHẶNG {currentSegmentIndex + 1}/{totalSegments}
+            <Text style={[styles.segmentCounter, isInOpenRun && { color: '#00F0FF' }]}>
+              {isInOpenRun ? 'CHẠY THÊM TỰ DO' : `CHẶNG ${currentSegmentIndex + 1}/${totalSegments}`}
             </Text>
             <Text style={styles.segmentTarget}>
-              Mục tiêu: {formatPaceDisplay(currentSegment.targetPaceMinSec)}–
-              {formatPaceDisplay(currentSegment.targetPaceMaxSec)}
+              {isInOpenRun
+                ? 'Theo thể lực • Max 178 bpm'
+                : `Mục tiêu: ${formatPaceDisplay(currentSegment.targetPaceMinSec)}–${formatPaceDisplay(currentSegment.targetPaceMaxSec)}`}
             </Text>
           </View>
           <Text style={styles.segmentName} numberOfLines={1}>
-            {currentSegment.name}
+            {isInOpenRun ? 'Đã hoàn thành giáo án — Tự do chạy tiếp nếu còn sức' : currentSegment.name}
           </Text>
           <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${segProgressPct}%`, backgroundColor: ambientColor }]} />
+            <View
+              style={[
+                styles.progressFill,
+                {
+                  width: isInOpenRun ? '100%' : `${segProgressPct}%`,
+                  backgroundColor: isInOpenRun ? '#00F0FF' : ambientColor,
+                },
+              ]}
+            />
           </View>
         </View>
 
@@ -289,9 +304,11 @@ export const RunHudScreen: React.FC<RunHudScreenProps> = ({
         </View>
 
         {/* Nút điều khiển chính: Chưa chạy vs Đang chạy vs Đã kết thúc */}
-        {!isRunning && (isCompleted || totalDistanceMeters > 50) ? (
+        {!isRunning && (isRunEnded || totalDistanceMeters > 50) ? (
           <View style={styles.completedCard}>
-            <Text style={styles.completedHeader}>🎉 ĐÃ KẾT THÚC BUỔI CHẠY</Text>
+            <Text style={styles.completedHeader}>
+              {isPlanCompleted ? '🎉 HOÀN THÀNH XUẤT SẮC' : '🎉 ĐÃ DỪNG BUỔI CHẠY'}
+            </Text>
             <View style={styles.completedMetricsRow}>
               <View style={styles.completedCol}>
                 <Text style={styles.completedLabel}>Quãng đường</Text>
@@ -439,6 +456,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#1E2534',
     marginBottom: 12,
+  },
+  segmentCardOpenRun: {
+    borderColor: '#00F0FF',
+    backgroundColor: '#091A24',
   },
   segmentTopRow: {
     flexDirection: 'row',
