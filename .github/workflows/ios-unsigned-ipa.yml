@@ -37,15 +37,25 @@ jobs:
           echo "Using node at: $NODE_PATH"
           cat ios/.xcode.env.local
 
-      - name: Disable Code Signing in Xcode Project & Pods
+      - name: Disable Code Signing & Strip Entitlements
         working-directory: ios
         run: |
-          # 1. Disable Code Signing on Main Target in project.pbxproj
-          find . -name "project.pbxproj" -exec sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' {} +
-          find . -name "project.pbxproj" -exec sed -i '' 's/CODE_SIGN_IDENTITY = "iPhone Developer";/CODE_SIGN_IDENTITY = "";/g' {} +
-          find . -name "project.pbxproj" -exec sed -i '' 's/DEVELOPMENT_TEAM = [^;]*;/DEVELOPMENT_TEAM = "";/g' {} +
+          # 1. Patch project.pbxproj — Manual signing, no team, no entitlements
+          find . -name "project.pbxproj" -exec sed -i '' \
+            -e 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' \
+            -e 's/CODE_SIGN_IDENTITY = "iPhone Developer";/CODE_SIGN_IDENTITY = "";/g' \
+            -e 's/CODE_SIGN_IDENTITY = "Apple Development";/CODE_SIGN_IDENTITY = "";/g' \
+            -e 's/DEVELOPMENT_TEAM = [^;]*;/DEVELOPMENT_TEAM = "";/g' \
+            -e 's/CODE_SIGN_ENTITLEMENTS = [^;]*;/CODE_SIGN_ENTITLEMENTS = "";/g' \
+            {} +
 
-          # 2. Disable Code Signing on all CocoaPods targets
+          # 2. Remove or empty any .entitlements files (they force signing checks)
+          find . -name "*.entitlements" | while read f; do
+            echo "Emptying entitlements: $f"
+            echo '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict></dict></plist>' > "$f"
+          done
+
+          # 3. Patch Podfile: disable signing on all CocoaPods targets
           ruby -e '
           file = "Podfile"
           if File.exist?(file)
@@ -55,14 +65,16 @@ jobs:
                 target.build_configurations.each do |config|
                   config.build_settings["CODE_SIGNING_ALLOWED"] = "NO"
                   config.build_settings["CODE_SIGNING_REQUIRED"] = "NO"
+                  config.build_settings["CODE_SIGN_IDENTITY"] = ""
                   config.build_settings["EXPANDED_CODE_SIGN_IDENTITY"] = ""
+                  config.build_settings["CODE_SIGN_ENTITLEMENTS"] = ""
                 end
               end
             RUBY
             if content.include?("post_install do |installer|")
               content.sub!("post_install do |installer|", "post_install do |installer|\n" + signing_patch)
               File.write(file, content)
-              puts "Successfully patched Podfile with code-signing bypass."
+              puts "Successfully patched Podfile."
             end
           end
           '
@@ -74,6 +86,7 @@ jobs:
           WORKSPACE=$(ls -d *.xcworkspace | head -n 1)
           SCHEME=$(basename "$WORKSPACE" .xcworkspace)
           echo "Building Workspace: $WORKSPACE with Scheme: $SCHEME"
+          set -o pipefail
           NODE_BINARY=$(which node) xcodebuild build \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
@@ -82,10 +95,18 @@ jobs:
             -derivedDataPath "build" \
             CODE_SIGN_STYLE="Manual" \
             CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_ENTITLEMENTS="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_INJECT_BASE_ENTITLEMENTS=NO \
             DEVELOPMENT_TEAM="" \
-            COMPILER_INDEX_STORE_ENABLE=NO
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            2>&1 | tee /tmp/xcode_build.log; BUILD_EXIT=${PIPESTATUS[0]}
+          if [ $BUILD_EXIT -ne 0 ]; then
+            echo "===== XCODE BUILD FAILED — LAST 200 LINES OF LOG ====="
+            tail -200 /tmp/xcode_build.log
+            exit $BUILD_EXIT
+          fi
 
       - name: Package Payload into Sub60AudioPacer.ipa
         working-directory: ios
