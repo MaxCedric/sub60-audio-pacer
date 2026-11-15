@@ -47,18 +47,16 @@ jobs:
             -e 's/CODE_SIGN_ENTITLEMENTS = [^;]*;/CODE_SIGN_ENTITLEMENTS = "";/g' \
             {} +
 
-          # 2. Empty all .entitlements files using python (avoids heredoc YAML issues)
+          # 2. Empty all .entitlements files using python3
           python3 -c "
           import os, glob
-          empty = '''<?xml version=\"1.0\" encoding=\"UTF-8\"?>
-          <!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">
-          <plist version=\"1.0\"><dict></dict></plist>'''
+          empty = '<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\"><plist version=\"1.0\"><dict></dict></plist>'
           for f in glob.glob('**/*.entitlements', recursive=True):
               print('Emptying:', f)
               open(f, 'w').write(empty)
           "
 
-          # 3. Patch Podfile for pod signing bypass
+          # 3. Patch Podfile
           ruby -e '
           file = "Podfile"
           if File.exist?(file)
@@ -104,14 +102,15 @@ jobs:
             DEVELOPMENT_TEAM="" \
             COMPILER_INDEX_STORE_ENABLE=NO \
             GCC_WARN_INHIBIT_ALL_WARNINGS=YES \
+            OTHER_CODE_SIGN_FLAGS="--keychain /Library/Keychains/System.keychain" \
             2>&1 | tee "$RUNNER_TEMP/xcode_build.log"
           BUILD_EXIT=${PIPESTATUS[0]}
           echo "xcodebuild exit: $BUILD_EXIT"
           if [ $BUILD_EXIT -ne 0 ]; then
-            echo "=== ERRORS ==="
-            grep -E "(error:|FAILED|ld:|Undefined symbol)" "$RUNNER_TEMP/xcode_build.log" | tail -60
-            echo "=== LAST 150 LINES ==="
-            tail -150 "$RUNNER_TEMP/xcode_build.log"
+            echo "=== GREP ERRORS ==="
+            grep -E "^.*error:.*$" "$RUNNER_TEMP/xcode_build.log" | grep -v "^CompileC\|^Ld\|note:" | head -50
+            echo "=== LAST 200 LINES ==="
+            tail -200 "$RUNNER_TEMP/xcode_build.log"
             exit $BUILD_EXIT
           fi
 
@@ -130,11 +129,8 @@ jobs:
           if [ -z "$APP_PATH" ]; then
             APP_PATH=$(find "$RUNNER_TEMP/xcode-build" -name "*.app" 2>/dev/null | head -n 1)
           fi
-          if [ -z "$APP_PATH" ]; then
-            echo "Error: .app not found!"
-            exit 1
-          fi
-          echo "Found .app at: $APP_PATH"
+          if [ -z "$APP_PATH" ]; then echo "Error: .app not found!"; exit 1; fi
+          echo "Packaging: $APP_PATH"
           cp -r "$APP_PATH" ios/Payload/
           cd ios && zip -r -9 Sub60AudioPacer-unsigned.ipa Payload
 
