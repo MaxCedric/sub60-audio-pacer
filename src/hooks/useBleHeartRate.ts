@@ -121,15 +121,18 @@ export function parseHeartRateMeasurement(base64Value: string): HeartRatePacket 
 }
 
 // Singleton BleManager để duy trì kết nối xuyên suốt vòng đời ứng dụng
+// NOTE: restoreStateIdentifier yêu cầu entitlement bluetooth-background (chỉ Apple Developer $99/năm).
+// Với Sideloadly / free Apple ID, bỏ State Restoration để tránh crash khi thiếu entitlement.
 let sharedBleManager: BleManager | null = null;
 function getBleManager(): BleManager {
   if (!sharedBleManager) {
-    sharedBleManager = new BleManager({
-      restoreStateIdentifier: 'sub60-ble-central-restore-id',
-      restoreStateFunction: () => {
-        // iOS tự động đánh thức app khi HUAWEI WATCH FIT 4 phát gói 0x2A37 trong nền
-      },
-    });
+    try {
+      sharedBleManager = new BleManager();
+    } catch (e) {
+      // Fallback: thử lại không có options nếu khởi tạo lần đầu gặp lỗi
+      console.warn('[BLE] BleManager init error:', e);
+      sharedBleManager = new BleManager();
+    }
   }
   return sharedBleManager;
 }

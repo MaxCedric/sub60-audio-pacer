@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useState, Component } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
 import { HomeScreen } from './src/screens/HomeScreen';
@@ -8,9 +8,47 @@ import { StatsScreen } from './src/screens/StatsScreen';
 import { useBleHeartRate } from './src/hooks/useBleHeartRate';
 import { WorkoutPlan } from './src/hooks/useRunningPacer';
 
-type ActiveBottomTab = 'PLAN' | 'STATS';
+// ─── Global Error Boundary ────────────────────────────────────────────────────
+interface EBState { hasError: boolean; error: string }
+class AppErrorBoundary extends Component<{ children: React.ReactNode }, EBState> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: '' };
+  }
+  static getDerivedStateFromError(error: Error): EBState {
+    return { hasError: true, error: error?.message || String(error) };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, backgroundColor: '#07090D', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <Text style={{ color: '#FF4444', fontSize: 18, fontWeight: '900', marginBottom: 12 }}>❌ App gặp lỗi</Text>
+          <ScrollView style={{ maxHeight: 300 }}>
+            <Text style={{ color: '#94A3B8', fontSize: 12, fontFamily: 'monospace' }}>{this.state.error}</Text>
+          </ScrollView>
+          <TouchableOpacity
+            style={{ marginTop: 24, backgroundColor: '#D2FF00', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 }}
+            onPress={() => this.setState({ hasError: false, error: '' })}
+          >
+            <Text style={{ color: '#07090D', fontWeight: '900' }}>Thử lại</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export default function App() {
+  return (
+    <AppErrorBoundary>
+      <AppInner />
+    </AppErrorBoundary>
+  );
+}
+
+function AppInner() {
+  type ActiveBottomTab = 'PLAN' | 'STATS';
   const [activeWorkout, setActiveWorkout] = useState<WorkoutPlan | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveBottomTab>('PLAN');
 
