@@ -28,39 +28,42 @@ const HR_ALERT_COOLDOWN_MS = 25000;
 const POSITIVE_COOLDOWN_MS = 60000;
 
 /**
- * BẢNG NỘI DUNG TẤT CẢ ÂM THANH VOICE CỦA APP (Ngắn gọn, dứt khoát, dễ nghe khi thở dốc)
+ * BẢNG NỘI DUNG TẤT CẢ ÂM THANH VOICE CỦA APP
+ * Chuẩn não mệt khi chạy đường dài:
+ * - Mỗi vế tối đa 2 đến 3 từ.
+ * - Ngăn cách bằng dấu chấm/phẩy để hệ thống tự động ngừng 0.75s giữa các vế.
  */
 export const AUDIO_SCRIPTS = {
   // 1. Kiểm tra thể trạng (Check-in tương tác)
-  CHECK_IN: 'Bạn ổn không? Đau chân hay mệt quá?',
-  CHECK_IN_PAIN: 'Dừng chạy ngay. Đi bộ thả lỏng kẻo chấn thương!',
-  CHECK_IN_FATIGUE: 'Chậm lại một nhịp. Thả lỏng vai, thở sâu nào.',
-  CHECK_IN_OK: 'Tốt lắm. Cứ đều chân, giữ nhịp thở nhé!',
+  CHECK_IN: 'Bạn ổn không? Đau chân không?',
+  CHECK_IN_PAIN: 'Đi bộ ngay. Thả lỏng chân.',
+  CHECK_IN_FATIGUE: 'Chậm lại nào. Thở sâu nhé.',
+  CHECK_IN_OK: 'Rất tốt. Giữ nhịp nhé.',
 
-  // 2. Cảnh báo nhịp tim & Pace (ngắn gọn dưới 6 từ)
-  CRITICAL_HR: 'Nguy hiểm! Tim quá cao, đi bộ ngay!',
-  HR_RED_ZONE: 'Tim chạm ngưỡng đỏ. Thả lỏng vai, thở sâu!',
-  HR_RISING: (hr: number) => `Tim lên ${hr}. Hạ nhẹ nhịp độ nhé.`,
-  PACE_TOO_FAST: 'Hơi nhanh. Kìm chân lại một chút.',
-  PACE_TOO_SLOW_FATIGUED: 'Tim đang cao. Thả lỏng vai, thở sâu nhé.',
-  PACE_TOO_SLOW_NORMAL: 'Hơi chậm rồi. Nâng nhẹ nhịp bước lên.',
-  PACE_SPIKE_FAST: 'Đang vọt tốc. Kìm nhẹ bước lại.',
-  PACE_DRIFT_SLOW: 'Đang chùng chân. Nâng nhẹ bước lên.',
-  IN_ZONE_CONFIRM: 'Nhịp rất đẹp. Cứ giữ đều!',
+  // 2. Cảnh báo nhịp tim & Pace (mỗi vế tối đa 2 - 3 từ)
+  CRITICAL_HR: 'Tim quá cao. Đi bộ ngay!',
+  HR_RED_ZONE: 'Chạm ngưỡng đỏ. Thở sâu nào!',
+  HR_RISING: (hr: number) => `Tim ${hr}. Chậm lại chút.`,
+  PACE_TOO_FAST: 'Hơi nhanh rồi. Kìm chân lại.',
+  PACE_TOO_SLOW_FATIGUED: 'Tim đang cao. Thở sâu nhé.',
+  PACE_TOO_SLOW_NORMAL: 'Hơi chậm rồi. Nâng nhịp lên.',
+  PACE_SPIKE_FAST: 'Đang vọt tốc. Kìm lại chút.',
+  PACE_DRIFT_SLOW: 'Đang chùng chân. Tăng nhịp bước.',
+  IN_ZONE_CONFIRM: 'Rất đều. Giữ nhịp này!',
 
   // 3. Mốc cự ly & Cổ vũ tinh thần
-  DISTANCE_SPLIT: (km: string, pace: string) => `${km}. Pace ${pace}. Rất tốt!`,
-  MOTIVATION_HALFWAY: 'Qua nửa bài rồi. Rất tốt, giữ đều nhé!',
-  MOTIVATION_1KM: 'Còn một cây số nữa. Ráng lên, sắp xong rồi!',
-  MOTIVATION_500M: 'Năm trăm mét cuối. Thả lỏng vai, cố lên!',
+  DISTANCE_SPLIT: (km: string, pace: string) => `${km}. Pace ${pace}. Tốt lắm!`,
+  MOTIVATION_HALFWAY: 'Qua một nửa. Giữ đều nhé!',
+  MOTIVATION_1KM: 'Còn một cây. Ráng lên nào!',
+  MOTIVATION_500M: 'Năm trăm mét. Cố lên đích!',
 
   // 4. Trạng thái bài tập
-  WORKOUT_COMPLETED: 'Tuyệt vời! Xong bài tập rồi. Cứ chạy tiếp nếu còn sức nhé!',
-  WORKOUT_STOPPED: 'Đã dừng bài tập. Bạn đi bộ thả lỏng nhé.',
-  SUB65_ON: 'Chuyển sang mục tiêu an toàn Sub 65.',
-  SUB65_OFF: 'Quay lại mục tiêu Sub 60.',
-  WALK_RECOVERY_ON: 'Chuyển sang đi bộ hồi phục.',
-  RESUME_RUNNING: 'Bắt đầu chạy lại. Tăng tốc từ từ nhé.',
+  WORKOUT_COMPLETED: 'Xong bài rồi. Chạy thêm nhé!',
+  WORKOUT_STOPPED: 'Đã dừng bài. Đi bộ nhé.',
+  SUB65_ON: 'Bật Sub 65.',
+  SUB65_OFF: 'Về Sub 60.',
+  WALK_RECOVERY_ON: 'Đi bộ nào.',
+  RESUME_RUNNING: 'Chạy lại nào. Tăng từ từ.',
 };
 
 function encodeWavBase64(samples: Int16Array, sampleRate = 22050): string {
@@ -157,6 +160,7 @@ function createEarconDataUri(type: EarconType): string {
 
 class AudioCoachService {
   private isSpeaking = false;
+  private currentSpeechSessionId = 0;
   private lastPaceAlertTime = 0;
   private lastPaceTrendTime = 0;
   private lastHrTrendTime = 0;
@@ -251,6 +255,7 @@ class AudioCoachService {
    * Dừng toàn bộ âm thanh ngay lập tức (khi dừng bài hoặc reset)
    */
   async stopAll(): Promise<void> {
+    this.currentSpeechSessionId++;
     this.isSpeaking = false;
     try {
       await Speech.stop();
@@ -258,6 +263,25 @@ class AudioCoachService {
     } catch {
       // Bỏ qua
     }
+  }
+
+  private speakSingleChunk(chunk: string, sessionId: number): Promise<boolean> {
+    return new Promise((resolve) => {
+      Speech.speak(chunk, {
+        language: 'vi-VN',
+        pitch: 1.0,
+        rate: this.speechRate,
+        onDone: () => {
+          resolve(this.currentSpeechSessionId === sessionId);
+        },
+        onStopped: () => {
+          resolve(false);
+        },
+        onError: () => {
+          resolve(false);
+        },
+      });
+    });
   }
 
   async speak(
@@ -292,6 +316,17 @@ class AudioCoachService {
       return;
     }
 
+    // Tách câu theo dấu chấm, phẩy, chấm hỏi, chấm than để runner tiếp nhận từng vế ngắn (2-3 từ)
+    const chunks = text
+      .split(/[,.!?;\n]+/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+
+    if (chunks.length === 0) return;
+
+    this.currentSpeechSessionId++;
+    const sessionId = this.currentSpeechSessionId;
+
     try {
       this.isSpeaking = true;
       await this.setDuckingMode(true);
@@ -301,27 +336,24 @@ class AudioCoachService {
         await new Promise((r) => setTimeout(r, 160));
       }
 
-      // Tốc độ speechRate (mặc định 0.82): Chậm rãi, ngắt nghỉ từng chữ theo nhịp thở runner
-      Speech.speak(text, {
-        language: 'vi-VN',
-        pitch: 1.0,
-        rate: this.speechRate,
-        onDone: async () => {
-          this.isSpeaking = false;
-          await this.setDuckingMode(false);
-        },
-        onStopped: async () => {
-          this.isSpeaking = false;
-          await this.setDuckingMode(false);
-        },
-        onError: async () => {
-          this.isSpeaking = false;
-          await this.setDuckingMode(false);
-        },
-      });
+      for (let i = 0; i < chunks.length; i++) {
+        if (this.currentSpeechSessionId !== sessionId) return;
+
+        const success = await this.speakSingleChunk(chunks[i], sessionId);
+        if (!success || this.currentSpeechSessionId !== sessionId) return;
+
+        // Dừng 0.75 giây giữa các dấu chấm, phẩy hoặc hết câu theo nhịp thở runner
+        if (i < chunks.length - 1) {
+          await new Promise((r) => setTimeout(r, 750));
+        }
+      }
     } catch {
-      this.isSpeaking = false;
-      await this.setDuckingMode(false);
+      // Bỏ qua
+    } finally {
+      if (this.currentSpeechSessionId === sessionId) {
+        this.isSpeaking = false;
+        await this.setDuckingMode(false);
+      }
     }
   }
 

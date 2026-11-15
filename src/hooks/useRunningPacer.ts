@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
-import { audioCoach } from '../services/audioCoach';
+import { audioCoach, AUDIO_SCRIPTS } from '../services/audioCoach';
 
 /**
  * Module 2 (Đồng bộ ngưỡng Lactate 175 bpm @ 7'41" & Format PT Zone-Pace-Tim-Action):
@@ -374,7 +374,7 @@ export function useRunningPacer(
 
   const resumeRunningFromWalk = useCallback(async () => {
     setIsWalkingRecovery(false);
-    await audioCoach.speak('Bắt đầu chạy lại. Tăng tốc từ từ nhé.', 'POSITIVE', 'good');
+    await audioCoach.speak(AUDIO_SCRIPTS.RESUME_RUNNING, 'POSITIVE', 'good');
   }, []);
 
   const evaluatePtCoaching = useCallback(
@@ -831,7 +831,7 @@ export function useRunningPacer(
     await audioCoach.stopAll();
     await audioCoach.stopMetronome();
     setIsMetronomeOn(false);
-    audioCoach.speak('Đã dừng bài tập. Bạn đi bộ thả lỏng và nghỉ ngơi nhé.', 'MILESTONE', 'good');
+    audioCoach.speak(AUDIO_SCRIPTS.WORKOUT_STOPPED, 'MILESTONE', 'good');
   }, [handleLocationsUpdate]);
 
   const toggleMetronome = useCallback(async () => {
@@ -853,7 +853,7 @@ export function useRunningPacer(
     setIsFallbackSub65Active((prev) => {
       const next = !prev;
       audioCoach.speak(
-        next ? 'Chuyển sang mục tiêu an toàn Sub 65.' : 'Quay lại mục tiêu chính Sub 60.',
+        next ? AUDIO_SCRIPTS.SUB65_ON : AUDIO_SCRIPTS.SUB65_OFF,
         'MILESTONE',
         'good'
       );
