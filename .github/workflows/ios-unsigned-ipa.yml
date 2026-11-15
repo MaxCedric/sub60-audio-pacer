@@ -35,6 +35,23 @@ jobs:
           echo "NODE_BINARY=${NODE_PATH}" > ios/.xcode.env.local
           echo "Using node at: $NODE_PATH"
 
+      - name: Pre-bundle React Native JS (avoid Xcode bundle script failure)
+        run: |
+          mkdir -p ios/main.jsbundle.d
+          NODE_BINARY=$(which node) node_modules/.bin/react-native bundle \
+            --platform ios \
+            --dev false \
+            --entry-file node_modules/expo/AppEntry.js \
+            --bundle-output ios/main.jsbundle \
+            --assets-dest ios \
+            --minify true \
+            || true
+          if [ -f ios/main.jsbundle ]; then
+            echo "JS bundle created: $(wc -c < ios/main.jsbundle) bytes"
+          else
+            echo "Bundle skipped or failed — Xcode will bundle inline"
+          fi
+
       - name: Disable Code Signing & Strip Entitlements
         working-directory: ios
         run: |
@@ -49,14 +66,14 @@ jobs:
 
           # 2. Empty all .entitlements files using python3
           python3 -c "
-          import os, glob
+          import glob
           empty = '<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\"><plist version=\"1.0\"><dict></dict></plist>'
           for f in glob.glob('**/*.entitlements', recursive=True):
               print('Emptying:', f)
               open(f, 'w').write(empty)
           "
 
-          # 3. Patch Podfile
+          # 3. Patch Podfile: disable signing on all CocoaPods targets
           ruby -e '
           file = "Podfile"
           if File.exist?(file)
@@ -93,6 +110,7 @@ jobs:
             -configuration Release \
             -destination "generic/platform=iOS" \
             -derivedDataPath "$RUNNER_TEMP/xcode-build" \
+            SKIP_BUNDLING=NO \
             CODE_SIGN_STYLE="Manual" \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGN_ENTITLEMENTS="" \
@@ -102,25 +120,39 @@ jobs:
             DEVELOPMENT_TEAM="" \
             COMPILER_INDEX_STORE_ENABLE=NO \
             GCC_WARN_INHIBIT_ALL_WARNINGS=YES \
-            OTHER_CODE_SIGN_FLAGS="--keychain /Library/Keychains/System.keychain" \
             2>&1 | tee "$RUNNER_TEMP/xcode_build.log"
           BUILD_EXIT=${PIPESTATUS[0]}
           echo "xcodebuild exit: $BUILD_EXIT"
           if [ $BUILD_EXIT -ne 0 ]; then
-            echo "=== GREP ERRORS ==="
-            grep -E "^.*error:.*$" "$RUNNER_TEMP/xcode_build.log" | grep -v "^CompileC\|^Ld\|note:" | head -50
-            echo "=== LAST 200 LINES ==="
+            echo ""
+            echo "======= ERRORS ONLY ======="
+            grep -E "error:" "$RUNNER_TEMP/xcode_build.log" | grep -v "note:\|^/\*\|^\s*//" | tail -60 || true
+            echo ""
+            echo "======= LAST 200 LINES ======="
             tail -200 "$RUNNER_TEMP/xcode_build.log"
             exit $BUILD_EXIT
           fi
 
-      - name: Upload Xcode Build Log
+      - name: Upload Xcode Build Log (artifact)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: xcode-build-log
           path: ${{ runner.temp }}/xcode_build.log
           if-no-files-found: warn
+
+      - name: Share error log publicly via transfer.sh
+        if: failure()
+        run: |
+          ERROR_SNIPPET="$RUNNER_TEMP/xcode_errors.txt"
+          grep -E "error:" "$RUNNER_TEMP/xcode_build.log" | grep -v "note:" | head -100 > "$ERROR_SNIPPET" || true
+          echo "--- LAST 300 LINES ---" >> "$ERROR_SNIPPET"
+          tail -300 "$RUNNER_TEMP/xcode_build.log" >> "$ERROR_SNIPPET"
+          URL=$(curl --retry 3 -s --max-time 30 --upload-file "$ERROR_SNIPPET" https://transfer.sh/xcode_errors.txt 2>/dev/null || echo "UPLOAD_FAILED")
+          echo ""
+          echo "============================================"
+          echo "PUBLIC ERROR LOG URL: $URL"
+          echo "============================================"
 
       - name: Package Payload into Sub60AudioPacer.ipa
         run: |
