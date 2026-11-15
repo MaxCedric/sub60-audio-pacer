@@ -118,10 +118,16 @@ export function useRunningPacer(
   const [isMetronomeOn, setIsMetronomeOn] = useState(false);
   const [metronomeBpm, setMetronomeBpm] = useState(172);
   const [isFallbackSub65Active, setIsFallbackSub65Active] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(false);
   const [isHrDangerActive, setIsHrDangerActive] = useState(false);
   const [paceZoneStatus, setPaceZoneStatus] = useState<'IN_ZONE' | 'TOO_FAST' | 'TOO_SLOW'>('IN_ZONE');
   const [gpsSimulatedPaceSec, setGpsSimulatedPaceSec] = useState<number | null>(null);
   const [permissionError, setPermissionError] = useState<string | null>(null);
+
+  const isWorkoutCompletedRef = useRef(false);
+  const announcedHalfwayRef = useRef(false);
+  const announced1KmLeftRef = useRef(false);
+  const announced500mLeftRef = useRef(false);
 
   const gpsHistoryRef = useRef<GpsSample[]>([]);
   const hrHistoryRef = useRef<HrSample[]>([]);
@@ -213,6 +219,7 @@ export function useRunningPacer(
 
   const evaluateSegmentProgression = useCallback(
     (currentTotalMeters: number, currentElapsedSec: number) => {
+      if (isWorkoutCompletedRef.current) return;
       const idx = segmentIndexRef.current;
       const seg = workout.segments[idx];
       if (!seg) return;
@@ -222,6 +229,22 @@ export function useRunningPacer(
 
       setSegmentProgressMeters(Math.max(0, distInSeg));
       setSegmentElapsedSeconds(Math.max(0, timeInSeg));
+
+      // Kiểm tra các mốc động viên tâm lý thực chiến (Halfway, 1km, 500m)
+      const targetTotalM = workout.totalDistanceKm * 1000;
+      if (targetTotalM > 0) {
+        const remainingM = targetTotalM - currentTotalMeters;
+        if (!announcedHalfwayRef.current && currentTotalMeters >= targetTotalM / 2 && remainingM > 1200) {
+          announcedHalfwayRef.current = true;
+          audioCoach.announceMotivationalCue('halfway');
+        } else if (!announced1KmLeftRef.current && remainingM <= 1050 && remainingM > 650 && targetTotalM >= 2000) {
+          announced1KmLeftRef.current = true;
+          audioCoach.announceMotivationalCue('1km_left');
+        } else if (!announced500mLeftRef.current && remainingM <= 550 && remainingM > 80 && targetTotalM >= 1200) {
+          announced500mLeftRef.current = true;
+          audioCoach.announceMotivationalCue('500m_left');
+        }
+      }
 
       const isDistComplete =
         typeof seg.distanceMeters === 'number' && seg.distanceMeters > 0 && distInSeg >= seg.distanceMeters;
@@ -243,9 +266,10 @@ export function useRunningPacer(
           const nextSeg = workout.segments[nextIdx];
           audioCoach.announceSegmentTransition(nextSeg.voiceIntro);
         } else {
-          audioCoach.announceSegmentTransition(
-            `Hoàn thành bài tập ${workout.title}. Đi bộ thả lỏng nhé.`
-          );
+          // CHẶN LẶP: Đánh dấu đã hoàn thành và chỉ phát âm báo đúng 1 lần duy nhất!
+          isWorkoutCompletedRef.current = true;
+          setIsCompleted(true);
+          audioCoach.announceWorkoutCompleted(workout.title);
         }
       }
     },
@@ -254,6 +278,7 @@ export function useRunningPacer(
 
   const evaluatePtCoaching = useCallback(
     (nowMs: number, currentElapsedSec: number) => {
+      if (isWorkoutCompletedRef.current || isPausedRef.current) return;
       const activeSeg = workout.segments[segmentIndexRef.current];
       const hr = heartRateRef.current;
       const currentPaceForCue = rollingPaceRef.current || shortPace6sRef.current;
@@ -585,6 +610,11 @@ export function useRunningPacer(
     setSegmentElapsedSeconds(0);
     setIsPaused(false);
     isPausedRef.current = false;
+    isWorkoutCompletedRef.current = false;
+    announcedHalfwayRef.current = false;
+    announced1KmLeftRef.current = false;
+    announced500mLeftRef.current = false;
+    setIsCompleted(false);
     setIsRunning(true);
     isRunningRef.current = true;
 
@@ -653,10 +683,12 @@ export function useRunningPacer(
   }, []);
 
   const stopRun = useCallback(async () => {
+    isWorkoutCompletedRef.current = true;
     isRunningRef.current = false;
     isPausedRef.current = false;
     setIsRunning(false);
     setIsPaused(false);
+    setIsCompleted(true);
     setGpsSimulatedPaceSec(null);
 
     backgroundListeners.delete(handleLocationsUpdate);
@@ -674,9 +706,11 @@ export function useRunningPacer(
       // Bỏ qua
     }
 
+    // DỪNG TOÀN BỘ ÂM THANH NGAY LẬP TỨC
+    await audioCoach.stopAll();
     await audioCoach.stopMetronome();
     setIsMetronomeOn(false);
-    audioCoach.speak('Kết thúc buổi chạy. Dữ liệu chính thức sẽ đồng bộ từ đồng hồ.', 'INFO', 'good');
+    audioCoach.speak('Đã dừng bài tập. Bạn đi bộ thả lỏng và nghỉ ngơi nhé.', 'MILESTONE', 'good');
   }, [handleLocationsUpdate]);
 
   const toggleMetronome = useCallback(async () => {
@@ -709,6 +743,7 @@ export function useRunningPacer(
   return {
     isRunning,
     isPaused,
+    isCompleted,
     elapsedSeconds,
     totalDistanceMeters,
     rollingPaceSecPerKm,

@@ -3,11 +3,11 @@ import * as Speech from 'expo-speech';
 import trainingPlanData from '../data/trainingPlan.json';
 
 /**
- * Module 3: Audio Coach (Chuẩn cấu trúc: Trạng thái -> Zone -> Pace -> Tim -> Action)
- * - Ngưỡng Lactate (LTHR) mặc định lấy từ trainingPlan.json (175 bpm @ 7'41"),
- *   nhưng có thể chỉnh linh hoạt trực tiếp trên màn hình HomeScreen.
- * - Các vùng Zone 1–5, ngưỡng cảnh báo sớm (LTHR - 5) và trần đỏ (LTHR + 3)
- *   tự động co giãn theo số LTHR bạn nhập.
+ * Module 3: Audio Coach (Chuẩn PT Chạy Bộ Thấu Cảm: Bình tĩnh, chậm rãi, ngắn gọn & cổ vũ)
+ * - Tốc độ đọc 0.90 chậm rãi, nhịp nhàng theo nhịp thở 2:2 của runner.
+ * - Ưu tiên Tim mạch hơn Pace: Nếu runner mệt (tim cao), KHÔNG bắt tăng tốc, chỉ nhắc thở sâu.
+ * - Cooldown kéo dài (40-60s) để runner không bị "điếc tai" hay ồn ào khi đang chạy mệt.
+ * - Tích hợp câu cổ vũ tâm lý thực chiến: "Sắp được rồi, ráng lên", "Còn 1 km", "500m cuối".
  */
 
 export type SpeechPriority =
@@ -20,11 +20,12 @@ export type SpeechPriority =
 
 type EarconType = 'good' | 'warn' | 'danger';
 
-const PACE_ALERT_COOLDOWN_MS = 28000;
-const PACE_TREND_COOLDOWN_MS = 22000;
-const HR_TREND_COOLDOWN_MS = 18000;
-const HR_ALERT_COOLDOWN_MS = 15000;
-const POSITIVE_COOLDOWN_MS = 20000;
+// Kéo dài Cooldown để tránh nói dồn dập, nhức đầu khi chạy
+const PACE_ALERT_COOLDOWN_MS = 50000;
+const PACE_TREND_COOLDOWN_MS = 45000;
+const HR_TREND_COOLDOWN_MS = 40000;
+const HR_ALERT_COOLDOWN_MS = 25000;
+const POSITIVE_COOLDOWN_MS = 60000;
 
 function encodeWavBase64(samples: Int16Array, sampleRate = 22050): string {
   const dataSize = samples.length * 2;
@@ -126,7 +127,6 @@ class AudioCoachService {
   private lastHrAlertTime = 0;
   private lastPositiveTime = 0;
 
-  // Mặc định 175 bpm từ trainingPlan.json, tự cập nhật khi người dùng chỉnh trên app
   private lactateThresholdHrBpm: number =
     trainingPlanData?.athleteProfile?.lactateThresholdHrBpm || 175;
 
@@ -192,11 +192,24 @@ class AudioCoachService {
         const uri = createEarconDataUri(type);
         const { sound } = await Audio.Sound.createAsync(
           { uri },
-          { volume: 0.6, shouldPlay: false }
+          { volume: 0.5, shouldPlay: false }
         );
         this.earconSounds[type] = sound;
       }
       await this.earconSounds[type]?.replayAsync();
+    } catch {
+      // Bỏ qua
+    }
+  }
+
+  /**
+   * Dừng toàn bộ âm thanh ngay lập tức (khi dừng bài hoặc reset)
+   */
+  async stopAll(): Promise<void> {
+    this.isSpeaking = false;
+    try {
+      await Speech.stop();
+      await this.setDuckingMode(false);
     } catch {
       // Bỏ qua
     }
@@ -219,16 +232,17 @@ class AudioCoachService {
       this.lastPositiveTime = now;
     }
 
-    if (priority === 'TREND_WARNING' && this.isSpeaking) {
-      return;
+    if (priority === 'TREND_WARNING') {
+      if (now - this.lastPaceTrendTime < PACE_TREND_COOLDOWN_MS || this.isSpeaking) return;
+      this.lastPaceTrendTime = now;
     }
 
     if (priority === 'CRITICAL_HR') {
       if (now - this.lastHrAlertTime < HR_ALERT_COOLDOWN_MS) return;
       this.lastHrAlertTime = now;
-      if (this.isSpeaking) {
+      try {
         await Speech.stop();
-      }
+      } catch {}
     } else if (this.isSpeaking && priority !== 'MILESTONE') {
       return;
     }
@@ -239,13 +253,14 @@ class AudioCoachService {
 
       if (earcon) {
         await this.playEarcon(earcon);
-        await new Promise((r) => setTimeout(r, 180));
+        await new Promise((r) => setTimeout(r, 160));
       }
 
+      // Tốc độ 0.90: Chậm rãi, tự nhiên, ngắt nghỉ rõ ràng để runner đang thở dốc vẫn nghe kịp
       Speech.speak(text, {
         language: 'vi-VN',
         pitch: 1.0,
-        rate: 1.06,
+        rate: 0.90,
         onDone: async () => {
           this.isSpeaking = false;
           await this.setDuckingMode(false);
@@ -265,10 +280,6 @@ class AudioCoachService {
     }
   }
 
-  /**
-   * Tính Zone 1-5 tự động theo ngưỡng Lactate (LTHR) hiện tại
-   * Với LTHR = 175: Z1 < 138 | Z2 138-156 | Z3 157-168 | Z4 169-175 | Z5 > 175
-   */
   getHeartRateZone(hr: number | null): number | null {
     if (!hr || hr <= 0) return null;
     const lt = this.lactateThresholdHrBpm;
@@ -289,35 +300,64 @@ class AudioCoachService {
     return `${mins} ${secs < 10 ? 'lẻ ' + secs : secs}`;
   }
 
-  private buildCue(
-    status: string,
-    paceSec: number | null,
-    hr: number | null,
-    action: string
-  ): string {
-    const zone = this.getHeartRateZone(hr);
-    const zonePart = zone ? `Zone ${zone}, ` : '';
-    const pacePart = paceSec ? `Pace ${this.formatPaceShort(paceSec)}, ` : '';
-    const hrPart = hr ? `Tim ${hr}, ` : '';
-    return `${status}, ${zonePart}${pacePart}${hrPart}${action}`;
-  }
+  // --- CÁC CÂU LỆNH CHUẨN PT CHẠY BỘ: NGẮN GỌN, CHẬM RÃI, CỔ VŨ ---
 
   announceDistanceMilestone(
     distanceKm: number,
     avgPaceSecPerKm: number,
-    currentHr: number | null
+    _currentHr: number | null
   ): void {
     const kmLabel = Number.isInteger(distanceKm)
       ? `Km ${distanceKm}`
       : `${distanceKm.toFixed(1).replace('.', ' phẩy ')} km`;
+    const paceStr = this.formatPaceShort(avgPaceSecPerKm);
 
-    const msg = this.buildCue(kmLabel, avgPaceSecPerKm, currentHr, 'giữ đều!');
+    // Câu ngắn gọn, tích cực
+    const msg = `${kmLabel}. Pace ${paceStr}. Rất tốt, giữ đều nhé!`;
     this.speak(msg, 'MILESTONE', 'good');
+  }
+
+  announceMotivationalCue(type: 'halfway' | '1km_left' | '500m_left'): void {
+    let msg = '';
+    if (type === 'halfway') {
+      msg = 'Đã qua một nửa bài rồi. Chân đang rất dẻo, duy trì nhé!';
+    } else if (type === '1km_left') {
+      msg = 'Chỉ còn đúng một ki lô mét nữa thôi. Sắp được rồi, ráng lên!';
+    } else if (type === '500m_left') {
+      msg = 'Năm trăm mét cuối cùng. Thả lỏng vai, cố lên về đích nào!';
+    }
+    if (msg) {
+      this.speak(msg, 'MILESTONE', 'good');
+    }
+  }
+
+  announcePaceDeviation(
+    direction: 'TOO_FAST' | 'TOO_SLOW',
+    _rollingPaceSec: number,
+    currentHr: number | null,
+    _targetMinSec: number,
+    _targetMaxSec: number
+  ): void {
+    if (direction === 'TOO_FAST') {
+      // Khi quá nhanh: Nhẹ nhàng bảo kìm lại
+      this.speak('Hơi nhanh rồi. Kìm chân lại một chút nhé.', 'PACE_WARNING', 'warn');
+      return;
+    }
+
+    // Khi quá chậm: Đánh giá thể trạng dựa trên nhịp tim!
+    const isFatigued = currentHr !== null && currentHr >= this.lactateThresholdHrBpm - 8;
+    if (isFatigued) {
+      // Runner đang mệt/tim cao -> ĐỪNG GIỤC NHANH! Hãy bảo vệ tim!
+      this.speak('Tim đang cao. Thả lỏng vai, cứ giữ nhịp này thở sâu nhé.', 'PACE_WARNING', 'warn');
+    } else {
+      // Tim còn thấp mà chạy chậm -> Nhắc nhẹ nhàng
+      this.speak('Hơi chùng chân rồi. Nâng nhẹ nhịp bước lên nào.', 'PACE_WARNING', 'warn');
+    }
   }
 
   announceHrRisingTrend(
     currentHr: number,
-    currentPaceSec: number | null,
+    _currentPaceSec: number | null,
     isNearLactateOrHardLimit: boolean
   ): void {
     const now = Date.now();
@@ -325,17 +365,15 @@ class AudioCoachService {
     this.lastHrTrendTime = now;
 
     if (isNearLactateOrHardLimit) {
-      const msg = this.buildCue('Quá ngưỡng', currentPaceSec, currentHr, 'hãm chân ngay!');
-      this.speak(msg, 'TREND_WARNING', 'danger');
+      this.speak('Tim chạm ngưỡng đỏ rồi. Thả lỏng vai, thở sâu ngay!', 'TREND_WARNING', 'danger');
     } else {
-      const msg = this.buildCue('Tim đang lên', currentPaceSec, currentHr, 'nới nhẹ bước!');
-      this.speak(msg, 'TREND_WARNING', 'warn');
+      this.speak(`Tim đang lên ${currentHr}. Điều hòa lại nhịp thở nhé.`, 'TREND_WARNING', 'warn');
     }
   }
 
   announcePaceTrend(
     trend: 'SPIKE_FAST' | 'DRIFT_SLOW',
-    currentPaceSec: number,
+    _currentPaceSec: number,
     currentHr: number | null
   ): void {
     const now = Date.now();
@@ -343,44 +381,33 @@ class AudioCoachService {
     this.lastPaceTrendTime = now;
 
     if (trend === 'SPIKE_FAST') {
-      const msg = this.buildCue('Quá nhanh', currentPaceSec, currentHr, 'kìm chân lại!');
-      this.speak(msg, 'TREND_WARNING', 'warn');
+      this.speak('Đang vọt tốc độ. Kìm chân lại chút nhé.', 'TREND_WARNING', 'warn');
     } else {
-      const msg = this.buildCue('Đang chậm dần', currentPaceSec, currentHr, 'thả vai, bước ngắn!');
-      this.speak(msg, 'TREND_WARNING', 'warn');
+      const isFatigued = currentHr !== null && currentHr >= this.lactateThresholdHrBpm - 8;
+      if (!isFatigued) {
+        this.speak('Đang chùng chân. Nâng nhẹ bước lên nào.', 'TREND_WARNING', 'warn');
+      }
     }
   }
 
-  announcePaceDeviation(
-    direction: 'TOO_FAST' | 'TOO_SLOW',
-    rollingPaceSec: number,
-    currentHr: number | null,
-    targetMinSec: number,
-    targetMaxSec: number
-  ): void {
-    const targetMid = this.formatPaceShort(Math.round((targetMinSec + targetMaxSec) / 2));
-
-    if (direction === 'TOO_FAST') {
-      const msg = this.buildCue('Quá nhanh', rollingPaceSec, currentHr, `hạ về ${targetMid}!`);
-      this.speak(msg, 'PACE_WARNING', 'warn');
-    } else {
-      const msg = this.buildCue('Quá chậm', rollingPaceSec, currentHr, `đẩy lên ${targetMid}!`);
-      this.speak(msg, 'PACE_WARNING', 'warn');
-    }
+  announceBackInZone(_rollingPaceSec: number, _currentHr: number | null): void {
+    this.speak('Nhịp rất đẹp. Giữ đều nhé!', 'POSITIVE', 'good');
   }
 
-  announceBackInZone(rollingPaceSec: number, currentHr: number | null): void {
-    const msg = this.buildCue('Đúng nhịp', rollingPaceSec, currentHr, 'giữ đều!');
-    this.speak(msg, 'POSITIVE', 'good');
-  }
-
-  announceCriticalHeartRate(currentHr: number, currentPaceSec: number | null): void {
-    const msg = this.buildCue('Quá giới hạn', currentPaceSec, currentHr, 'đi bộ ngay!');
-    this.speak(msg, 'CRITICAL_HR', 'danger');
+  announceCriticalHeartRate(_currentHr: number, _currentPaceSec: number | null): void {
+    this.speak('Cảnh báo nguy hiểm! Nhịp tim quá cao, đi bộ ngay!', 'CRITICAL_HR', 'danger');
   }
 
   announceSegmentTransition(voiceIntro: string): void {
     this.speak(voiceIntro, 'MILESTONE', 'good');
+  }
+
+  announceWorkoutCompleted(_workoutTitle: string): void {
+    this.speak(
+      'Tuyệt vời! Bạn đã hoàn thành xuất sắc bài chạy hôm nay. Đi bộ thả lỏng và nghỉ ngơi nhé!',
+      'MILESTONE',
+      'good'
+    );
   }
 
   async startMetronome(bpm = 172): Promise<void> {
@@ -432,8 +459,8 @@ class AudioCoachService {
   }
 
   async cleanup(): Promise<void> {
+    await this.stopAll();
     await this.stopMetronome();
-    await Speech.stop();
     if (this.metronomeSound) {
       try {
         await this.metronomeSound.unloadAsync();

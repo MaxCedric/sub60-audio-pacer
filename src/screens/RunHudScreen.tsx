@@ -38,6 +38,7 @@ export const RunHudScreen: React.FC<RunHudScreenProps> = ({
   const {
     isRunning,
     isPaused,
+    isCompleted,
     elapsedSeconds,
     totalDistanceMeters,
     rollingPaceSecPerKm,
@@ -287,8 +288,46 @@ export const RunHudScreen: React.FC<RunHudScreenProps> = ({
           </TouchableOpacity>
         </View>
 
-        {/* Nút điều khiển chính: Bắt đầu / Tạm dừng / Giữ 1.2s để Dừng */}
-        {!isRunning ? (
+        {/* Nút điều khiển chính: Chưa chạy vs Đang chạy vs Đã kết thúc */}
+        {!isRunning && (isCompleted || totalDistanceMeters > 50) ? (
+          <View style={styles.completedCard}>
+            <Text style={styles.completedHeader}>🎉 ĐÃ KẾT THÚC BUỔI CHẠY</Text>
+            <View style={styles.completedMetricsRow}>
+              <View style={styles.completedCol}>
+                <Text style={styles.completedLabel}>Quãng đường</Text>
+                <Text style={styles.completedVal}>{(totalDistanceMeters / 1000).toFixed(2)} km</Text>
+              </View>
+              <View style={styles.completedCol}>
+                <Text style={styles.completedLabel}>Thời gian</Text>
+                <Text style={styles.completedVal}>{formatDurationDisplay(elapsedSeconds)}</Text>
+              </View>
+              <View style={styles.completedCol}>
+                <Text style={styles.completedLabel}>Pace TB</Text>
+                <Text style={styles.completedVal}>{formatPaceDisplay(averagePaceSecPerKm)}</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={styles.returnHomeBtn}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                onBackToHome();
+              }}
+            >
+              <Text style={styles.returnHomeBtnText}>← VỀ TRANG CHỦ & LƯU NOTE PT</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.restartBtn}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                startRun();
+              }}
+            >
+              <Text style={styles.restartBtnText}>Chạy lại bài tập này</Text>
+            </TouchableOpacity>
+          </View>
+        ) : !isRunning ? (
           <TouchableOpacity
             style={styles.giantVoltStartBtn}
             onPress={() => {
@@ -646,5 +685,63 @@ const styles = StyleSheet.create({
     color: '#FF3B5C',
     fontSize: 13,
     fontWeight: '900',
+  },
+  completedCard: {
+    backgroundColor: '#10141D',
+    borderRadius: 22,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#00F0FF',
+    alignItems: 'center',
+    gap: 14,
+  },
+  completedHeader: {
+    color: '#00F0FF',
+    fontSize: 16,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  completedMetricsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    backgroundColor: '#090D14',
+    padding: 14,
+    borderRadius: 14,
+  },
+  completedCol: {
+    alignItems: 'center',
+  },
+  completedLabel: {
+    color: '#64748B',
+    fontSize: 11,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  completedVal: {
+    color: '#F8FAFC',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  returnHomeBtn: {
+    backgroundColor: '#00F0FF',
+    borderRadius: 16,
+    paddingVertical: 16,
+    width: '100%',
+    alignItems: 'center',
+  },
+  returnHomeBtnText: {
+    color: '#07090D',
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+  },
+  restartBtn: {
+    paddingVertical: 8,
+  },
+  restartBtnText: {
+    color: '#64748B',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });
