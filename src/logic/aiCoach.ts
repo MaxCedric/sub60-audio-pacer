@@ -388,3 +388,127 @@ export async function queryGeminiCoachingTip(
     return null;
   }
 }
+
+/**
+ * Phân tích hiệu năng thời gian thực KHI ĐANG CHẠY (In-Run Real-Time AI Copilot)
+ */
+export interface InRunAiAnalysisInput {
+  elapsedSeconds: number;
+  totalDistanceMeters: number;
+  targetTotalDistanceMeters: number;
+  rollingPaceSecPerKm: number;
+  averagePaceSecPerKm: number;
+  heartRate: number | null;
+  cadenceSpm: number | null;
+  currentSegmentName: string;
+  currentSegmentType: string;
+  targetPaceMinSec: number;
+  targetPaceMaxSec: number;
+  lthrBpm: number;
+  goalName: string;
+}
+
+export interface InRunAiCoachingInsight {
+  headline: string;
+  detail: string;
+  voiceAudioText: string;
+  urgency: 'INFO' | 'MOTIVATION' | 'ADJUST_PACE' | 'WARNING';
+}
+
+export function analyzeInRunPerformance(input: InRunAiAnalysisInput): InRunAiCoachingInsight {
+  const {
+    totalDistanceMeters,
+    targetTotalDistanceMeters,
+    rollingPaceSecPerKm,
+    heartRate,
+    cadenceSpm,
+    targetPaceMinSec,
+    targetPaceMaxSec,
+    currentSegmentType,
+  } = input;
+
+  const remainingMeters = Math.max(0, targetTotalDistanceMeters - totalDistanceMeters);
+  const isFinalKm = targetTotalDistanceMeters > 0 && remainingMeters <= 1000 && remainingMeters > 50;
+
+  // 1. Kiểm tra tim mạch nguy cấp
+  if (heartRate && heartRate >= 185) {
+    return {
+      headline: '⚠️ Tim đang vọt cao (185+ bpm)',
+      detail: `Nhịp tim hiện tại ${heartRate} bpm chạm ngưỡng quá tải. AI PT khuyên bạn kìm chân lại ngay.`,
+      voiceAudioText: 'Tim đang lên cao. Hãy chạy chậm lại một nhịp, thở sâu bằng bụng.',
+      urgency: 'WARNING',
+    };
+  }
+
+  // 2. Chặng cuối bài chạy
+  if (isFinalKm) {
+    return {
+      headline: '🏁 Còn dưới 1 km cuối!',
+      detail: 'Đã vào đoạn về đích. Duy trì sải chân gọn gàng và đánh tay dứt khoát.',
+      voiceAudioText: 'Sắp về đích rồi! Thả lỏng vai, giữ nhịp thở hai hai thật đều đặn.',
+      urgency: 'MOTIVATION',
+    };
+  }
+
+  // 3. Guồng chân thấp ở người cân nặng > 70kg
+  if (cadenceSpm && cadenceSpm > 0 && cadenceSpm < 165) {
+    return {
+      headline: '👟 Guồng chân đang chậm (< 165 SPM)',
+      detail: `Nhịp bước hiện tại ${cadenceSpm} SPM. Để giảm lực dội lên khớp gối 73,7 kg, hãy thu ngắn sải chân.`,
+      voiceAudioText: 'Guồng chân đang hơi chậm. Bước ngắn lại một chút theo nhịp metronome.',
+      urgency: 'ADJUST_PACE',
+    };
+  }
+
+  // 4. Kiểm tra trần tim Zone 2 trong bài Easy
+  if (
+    currentSegmentType === 'main' ||
+    currentSegmentType === 'warmup' ||
+    currentSegmentType === 'cooldown'
+  ) {
+    if (heartRate && heartRate > 160) {
+      return {
+        headline: '📈 Tim đang lệch khỏi Zone 2 (> 160 bpm)',
+        detail: `Đoạn này cần chạy hiếu khí hồi phục. Tim ${heartRate} bpm đang hơi cao.`,
+        voiceAudioText: 'Nhịp tim đang hơi nhanh. Kìm tốc độ lại một chút để giữ trong vùng hai.',
+        urgency: 'ADJUST_PACE',
+      };
+    }
+  }
+
+  // 5. Kiểm tra chênh lệch Pace
+  if (targetPaceMaxSec > 0 && rollingPaceSecPerKm > targetPaceMaxSec + 20) {
+    return {
+      headline: '🐢 Tốc độ đang chùng xuống',
+      detail: 'Pace hiện tại đang chậm hơn mục tiêu. Hãy tập trung đánh tay và đẩy nhẹ gót chân.',
+      voiceAudioText: 'Tốc độ đang hơi chậm. Đẩy nhẹ guồng chân để bắt lại nhịp bài tập.',
+      urgency: 'ADJUST_PACE',
+    };
+  }
+
+  if (targetPaceMinSec > 0 && rollingPaceSecPerKm < targetPaceMinSec - 15) {
+    return {
+      headline: '⚡ Đang chạy nhanh hơn kế hoạch',
+      detail: 'Bạn đang bứt tốc nhanh hơn yêu cầu của chặng này. Hãy kiềm chế để tránh đuối sức cuối bài.',
+      voiceAudioText: 'Bạn đang chạy hơi nhanh. Hãy giảm nhịp một chút để giữ sức đều.',
+      urgency: 'ADJUST_PACE',
+    };
+  }
+
+  // 6. Phong độ ổn định
+  if (cadenceSpm && cadenceSpm >= 170) {
+    return {
+      headline: `✨ Guồng chân ${cadenceSpm} SPM rất chuẩn!`,
+      detail: 'Nhịp chân ngắn và lực tiếp đất êm ái. Tiếp tục duy trì phong độ này.',
+      voiceAudioText: 'Guồng chân rất tốt! Hãy tiếp tục duy trì dáng chạy êm này.',
+      urgency: 'INFO',
+    };
+  }
+
+  return {
+    headline: '🎯 Nhịp chạy đang rất ổn định',
+    detail: 'Pace và nhịp tim đều nằm trong vùng kiểm soát tốt. Cố gắng giữ hơi thở sâu.',
+    voiceAudioText: 'Nhịp chạy đang rất tốt. Tiếp tục giữ đều chân nhé.',
+    urgency: 'INFO',
+  };
+}

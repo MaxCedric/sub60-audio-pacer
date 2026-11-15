@@ -1,6 +1,7 @@
 import {
   generateAdaptiveWorkout,
   getThisWeekStats,
+  analyzeInRunPerformance,
   RunnerFeeling,
 } from '../aiCoach';
 import { DEFAULT_ATHLETE_PROFILE } from '../athlete';
@@ -97,5 +98,73 @@ describe('aiCoach Logic Tests', () => {
     expect(stats.weeklyDistanceKm).toBe(4.0);
     expect(stats.sessionsCount).toBe(1);
     expect(stats.lastRunHoursAgo).toBeGreaterThan(0);
+  });
+
+  test('analyzeInRunPerformance triggers high heart rate warning when HR >= 185', () => {
+    const input = {
+      elapsedSeconds: 1200,
+      totalDistanceMeters: 2500,
+      targetTotalDistanceMeters: 5000,
+      rollingPaceSecPerKm: 380,
+      averagePaceSecPerKm: 390,
+      heartRate: 188,
+      cadenceSpm: 172,
+      currentSegmentName: 'Tempo 3 km',
+      currentSegmentType: 'tempo',
+      targetPaceMinSec: 360,
+      targetPaceMaxSec: 390,
+      lthrBpm: 176,
+      goalName: 'Sub 60',
+    };
+
+    const insight = analyzeInRunPerformance(input);
+    expect(insight.urgency).toBe('WARNING');
+    expect(insight.headline).toContain('Tim đang vọt cao');
+    expect(insight.voiceAudioText).toContain('chậm lại');
+  });
+
+  test('analyzeInRunPerformance prompts cadence fix if SPM < 165', () => {
+    const input = {
+      elapsedSeconds: 800,
+      totalDistanceMeters: 1500,
+      targetTotalDistanceMeters: 4000,
+      rollingPaceSecPerKm: 490,
+      averagePaceSecPerKm: 485,
+      heartRate: 152,
+      cadenceSpm: 158,
+      currentSegmentName: 'Easy 4 km',
+      currentSegmentType: 'main',
+      targetPaceMinSec: 480,
+      targetPaceMaxSec: 540,
+      lthrBpm: 176,
+      goalName: 'Sub 60',
+    };
+
+    const insight = analyzeInRunPerformance(input);
+    expect(insight.urgency).toBe('ADJUST_PACE');
+    expect(insight.headline).toContain('Guồng chân đang chậm');
+    expect(insight.voiceAudioText).toContain('metronome');
+  });
+
+  test('analyzeInRunPerformance motivates during final kilometer', () => {
+    const input = {
+      elapsedSeconds: 2700,
+      totalDistanceMeters: 4500,
+      targetTotalDistanceMeters: 5000,
+      rollingPaceSecPerKm: 358,
+      averagePaceSecPerKm: 360,
+      heartRate: 172,
+      cadenceSpm: 174,
+      currentSegmentName: 'Đoạn về đích',
+      currentSegmentType: 'main',
+      targetPaceMinSec: 355,
+      targetPaceMaxSec: 365,
+      lthrBpm: 176,
+      goalName: 'Sub 60',
+    };
+
+    const insight = analyzeInRunPerformance(input);
+    expect(insight.urgency).toBe('MOTIVATION');
+    expect(insight.headline).toContain('Còn dưới 1 km cuối');
   });
 });

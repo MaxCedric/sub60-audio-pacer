@@ -36,6 +36,10 @@ import {
   calculateEstimatedFinishTime,
   SplitRecord,
 } from '../logic/eta';
+import {
+  analyzeInRunPerformance,
+  InRunAiCoachingInsight,
+} from '../logic/aiCoach';
 import { storageService, CompletedRunSession } from '../services/storage';
 
 export const BACKGROUND_LOCATION_TASK = 'SUB60_BACKGROUND_LOCATION_TASK';
@@ -168,6 +172,9 @@ export function useRunningPacer(
   // Cadence sensor
   const [cadenceSpm, setCadenceSpm] = useState<number | null>(null);
   const [autoPauseEnabled, setAutoPauseEnabled] = useState(true);
+
+  // AI Live Copilot
+  const [aiLiveInsight, setAiLiveInsight] = useState<InRunAiCoachingInsight | null>(null);
 
   // PT Check-in tương tác & Đi bộ phục hồi
   const [checkInState, setCheckInState] = useState<CheckInState | null>(null);
@@ -417,6 +424,42 @@ export function useRunningPacer(
       return next;
     });
   }, []);
+
+  // Yêu cầu AI PT tư vấn thời gian thực qua giọng nói
+  const triggerLiveAiAdvice = useCallback((): InRunAiCoachingInsight => {
+    const totalDist = totalDistanceRef.current;
+    const elapsed = getActualElapsedSeconds(Date.now());
+    const avgPace = totalDist > 20 && elapsed > 0 ? Math.round((elapsed / totalDist) * 1000) : 450;
+    const resolved = resolveCurrentSegmentPace(currentSegment);
+
+    const insight = analyzeInRunPerformance({
+      elapsedSeconds: elapsed,
+      totalDistanceMeters: totalDist,
+      targetTotalDistanceMeters: workout.totalDistanceKm * 1000,
+      rollingPaceSecPerKm: rollingPaceRef.current || shortPace6sRef.current || 450,
+      averagePaceSecPerKm: avgPace,
+      heartRate: heartRateRef.current,
+      cadenceSpm,
+      currentSegmentName: currentSegment.name,
+      currentSegmentType: currentSegment.type,
+      targetPaceMinSec: resolved.minSec,
+      targetPaceMaxSec: resolved.maxSec,
+      lthrBpm: athleteProfile.lactateThresholdHrBpm,
+      goalName: GOAL_TIERS[currentGoalId].name,
+    });
+
+    setAiLiveInsight(insight);
+    audioCoach.speak(insight.voiceAudioText, 'POSITIVE', 'good');
+    return insight;
+  }, [
+    athleteProfile.lactateThresholdHrBpm,
+    cadenceSpm,
+    currentGoalId,
+    currentSegment,
+    getActualElapsedSeconds,
+    resolveCurrentSegmentPace,
+    workout.totalDistanceKm,
+  ]);
 
   // Tiến trình chặng
   const evaluateSegmentProgression = useCallback(
@@ -1074,6 +1117,8 @@ export function useRunningPacer(
     triggerLap,
     autoPauseEnabled,
     toggleAutoPause,
+    aiLiveInsight,
+    triggerLiveAiAdvice,
     resolveCurrentSegmentPace,
     gpsSimulatedPaceSec,
     setGpsSimulatedPaceSec,

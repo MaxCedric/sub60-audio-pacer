@@ -75,6 +75,8 @@ export const RunHudScreen: React.FC<RunHudScreenProps> = ({
     triggerLap,
     autoPauseEnabled,
     toggleAutoPause,
+    aiLiveInsight,
+    triggerLiveAiAdvice,
     resolveCurrentSegmentPace,
     gpsSimulatedPaceSec,
     setGpsSimulatedPaceSec,
@@ -375,6 +377,34 @@ export const RunHudScreen: React.FC<RunHudScreenProps> = ({
           >
             <Text style={styles.askPtBtnText}>🩺 BÁO PT: ĐAU CHÂN / MỆT QUÁ</Text>
           </TouchableOpacity>
+        ) : null}
+
+        {/* LIVE AI PT COPILOT CARD */}
+        {isRunning ? (
+          <View style={styles.aiLiveCard}>
+            <View style={styles.aiLiveTopRow}>
+              <View style={styles.aiLiveBadge}>
+                <Text style={styles.aiLiveBadgeText}>🤖 AI PT LIVE COPILOT</Text>
+              </View>
+              <Text style={styles.aiLiveStatusText} numberOfLines={1}>
+                {aiLiveInsight ? aiLiveInsight.headline : 'Đang theo dõi nhịp chạy...'}
+              </Text>
+            </View>
+
+            {aiLiveInsight?.detail ? (
+              <Text style={styles.aiLiveDetailText}>{aiLiveInsight.detail}</Text>
+            ) : null}
+
+            <TouchableOpacity
+              style={styles.aiVoiceConsultBtn}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                triggerLiveAiAdvice();
+              }}
+            >
+              <Text style={styles.aiVoiceConsultBtnText}>🎧 BẤM ĐỂ AI TƯ VẤN (NÓI QUA TAI NGHE)</Text>
+            </TouchableOpacity>
+          </View>
         ) : null}
 
         {/* BENTO METRICS: Quãng đường & Nhịp tim + Cadence */}
@@ -1342,5 +1372,56 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '900',
     letterSpacing: 0.5,
+  },
+  aiLiveCard: {
+    backgroundColor: '#0c1520',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#00F0FF66',
+    padding: 12,
+    marginBottom: 14,
+  },
+  aiLiveTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  aiLiveBadge: {
+    backgroundColor: '#00F0FF22',
+    borderWidth: 1,
+    borderColor: '#00F0FF',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  aiLiveBadgeText: {
+    color: '#00F0FF',
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  aiLiveStatusText: {
+    color: '#D2FF00',
+    fontSize: 12,
+    fontWeight: '800',
+    flex: 1,
+  },
+  aiLiveDetailText: {
+    color: '#94A3B8',
+    fontSize: 11,
+    lineHeight: 16,
+    marginBottom: 10,
+  },
+  aiVoiceConsultBtn: {
+    backgroundColor: '#D2FF00',
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  aiVoiceConsultBtnText: {
+    color: '#07090D',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.3,
   },
 });
