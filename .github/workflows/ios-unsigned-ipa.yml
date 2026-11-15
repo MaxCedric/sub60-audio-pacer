@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-ios-ipa:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -15,8 +15,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
+          node-version: 22
 
       - name: Install dependencies
         run: npm install --legacy-peer-deps
@@ -77,8 +76,6 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGN_ENTITLEMENTS="" \
-            CODE_SIGNING_INJECT_BASE_ENTITLEMENTS=NO \
             DEVELOPMENT_TEAM="" \
             COMPILER_INDEX_STORE_ENABLE=NO
 
@@ -103,3 +100,4 @@ jobs:
         with:
           name: Sub60AudioPacer-iOS-IPA
           path: ios/Sub60AudioPacer-unsigned.ipa
+          if-no-files-found: error
