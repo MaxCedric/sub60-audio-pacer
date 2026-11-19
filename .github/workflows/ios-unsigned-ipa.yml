@@ -24,7 +24,7 @@ jobs:
         run: npm run typecheck
 
       - name: Run Unit Tests (43 Tests)
-        run: npm test
+        run: npm test -- --watchAll=false
 
       - name: Expo Prebuild iOS Native Project
         run: npx expo prebuild --platform ios --clean
@@ -35,16 +35,21 @@ jobs:
           echo "NODE_BINARY=${NODE_PATH}" > ios/.xcode.env.local
           echo "Using node at: $NODE_PATH"
 
+      # ─────────────────────────────────────────────────────────────────────────
+      # ROOT CAUSE 1: `react-native bundle` fails because @react-native-community/cli
+      # isn't invoked correctly from npx on CI.  Use `npx expo export:embed` instead
+      # which is the official Expo-managed bundler command for prebuild projects.
+      # ─────────────────────────────────────────────────────────────────────────
       - name: Pre-bundle React Native JS Bundle & Assets
         run: |
           mkdir -p ios/assets
-          NODE_BINARY=$(which node) npx react-native bundle \
+          # Use expo's own bundling for prebuild projects (avoids CLI resolution issues)
+          NODE_BINARY=$(which node) npx expo export:embed \
             --platform ios \
             --dev false \
             --entry-file index.js \
             --bundle-output ios/main.jsbundle \
-            --assets-dest ios/assets \
-            --minify true
+            --assets-dest ios/assets
           echo "Verified JS bundle size: $(wc -c < ios/main.jsbundle) bytes"
 
       - name: Disable Code Signing & Strip Entitlements
@@ -135,13 +140,22 @@ jobs:
           path: ${{ runner.temp }}/xcode_build.log
           if-no-files-found: warn
 
+      # ─────────────────────────────────────────────────────────────────────────
+      # ROOT CAUSE 2: "Share error log" step was failing because xcode_build.log
+      # doesn't exist when the bundle step (not xcode build) fails first.
+      # Fix: guard with `if [ -f ... ]` before grepping / tailing the log.
+      # ─────────────────────────────────────────────────────────────────────────
       - name: Share error log publicly via transfer.sh
         if: failure()
         run: |
           ERROR_SNIPPET="$RUNNER_TEMP/xcode_errors.txt"
-          grep -E "error:" "$RUNNER_TEMP/xcode_build.log" | grep -v "note:" | head -100 > "$ERROR_SNIPPET" || true
-          echo "--- LAST 300 LINES ---" >> "$ERROR_SNIPPET"
-          tail -300 "$RUNNER_TEMP/xcode_build.log" >> "$ERROR_SNIPPET"
+          if [ -f "$RUNNER_TEMP/xcode_build.log" ]; then
+            grep -E "error:" "$RUNNER_TEMP/xcode_build.log" | grep -v "note:" | head -100 > "$ERROR_SNIPPET" || true
+            echo "--- LAST 300 LINES ---" >> "$ERROR_SNIPPET"
+            tail -300 "$RUNNER_TEMP/xcode_build.log" >> "$ERROR_SNIPPET"
+          else
+            echo "xcode_build.log not found — failure occurred before Xcode build step." > "$ERROR_SNIPPET"
+          fi
           URL=$(curl --retry 3 -s --max-time 30 --upload-file "$ERROR_SNIPPET" https://transfer.sh/xcode_errors.txt 2>/dev/null || echo "UPLOAD_FAILED")
           echo ""
           echo "============================================"

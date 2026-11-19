@@ -19,12 +19,12 @@
       "bundleIdentifier": "com.runner.sub60audiopacer",
       "icon": "./assets/icon.png",
       "infoPlist": {
-        "NSBluetoothAlwaysUsageDescription": "Sub60 Audio Pacer cần quyền Bluetooth chạy nền để đọc nhịp tim thời gian thực từ đồng hồ HUAWEI WATCH FIT 4 (chuẩn 0x180D) ngay cả khi khóa màn hình iPhone.",
-        "NSBluetoothPeripheralUsageDescription": "Sub60 Audio Pacer cần kết nối Bluetooth với đồng hồ HUAWEI WATCH FIT 4 để theo dõi ngưỡng an toàn tim mạch 178 bpm.",
-        "NSLocationWhenInUseUsageDescription": "Sub60 Audio Pacer cần vị trí GPS chính xác để tính toán Rolling Pace và quãng đường chạy bộ.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Sub60 Audio Pacer cần quyền GPS chạy nền (Always) để duy trì tính toán Pace và nhắc giọng nói qua tai nghe khi bạn khóa màn hình bỏ điện thoại vào túi chạy bộ.",
-        "NSLocationAlwaysUsageDescription": "Sub60 Audio Pacer cần quyền vị trí chạy nền liên tục để không bị gián đoạn khi khóa màn hình iPhone.",
-        "NSMotionUsageDescription": "Sub60 Audio Pacer sử dụng cảm biến chuyển động để hỗ trợ ước tính guồng chân (Cadence) khi chạy.",
+        "NSBluetoothAlwaysUsageDescription": "Sub60 Audio Pacer needs Bluetooth to read real-time heart rate from your HUAWEI WATCH FIT 4 (BLE standard 0x180D) even when iPhone screen is locked.",
+        "NSBluetoothPeripheralUsageDescription": "Sub60 Audio Pacer needs Bluetooth to connect to HUAWEI WATCH FIT 4 and monitor your cardiac safety threshold at 178 bpm.",
+        "NSLocationWhenInUseUsageDescription": "Sub60 Audio Pacer needs precise GPS to calculate your rolling pace and running distance.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Sub60 Audio Pacer needs background GPS (Always) to maintain pace calculation and voice coaching through earphones when your phone screen is locked in your running belt.",
+        "NSLocationAlwaysUsageDescription": "Sub60 Audio Pacer needs continuous background location access to stay uninterrupted when your iPhone screen locks.",
+        "NSMotionUsageDescription": "Sub60 Audio Pacer uses motion sensors to assist cadence (steps per minute) estimation while running.",
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
           "location",
@@ -47,9 +47,9 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Cho phép Sub60 Audio Pacer truy cập GPS chạy nền để đọc Pace qua tai nghe khi khóa màn hình.",
-          "locationAlwaysPermission": "Cho phép Sub60 Audio Pacer truy cập GPS chạy nền liên tục.",
-          "locationWhenInUsePermission": "Cho phép Sub60 Audio Pacer truy cập GPS khi đang chạy.",
+          "locationAlwaysAndWhenInUsePermission": "Allow Sub60 Audio Pacer to use background GPS for real-time pace coaching through your earphones when screen is locked.",
+          "locationAlwaysPermission": "Allow Sub60 Audio Pacer to use background GPS continuously.",
+          "locationWhenInUsePermission": "Allow Sub60 Audio Pacer to use GPS while running.",
           "isIosBackgroundLocationEnabled": true,
           "isAndroidBackgroundLocationEnabled": true
         }
@@ -61,7 +61,7 @@
           "modes": [
             "central"
           ],
-          "bluetoothAlwaysPermission": "Cho phép Sub60 Audio Pacer kết nối BLE với HUAWEI WATCH FIT 4 để đọc nhịp tim liên tục khi chạy."
+          "bluetoothAlwaysPermission": "Allow Sub60 Audio Pacer to connect via BLE to HUAWEI WATCH FIT 4 for continuous heart rate monitoring while running."
         }
       ]
     ]
