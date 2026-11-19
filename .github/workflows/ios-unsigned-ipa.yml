@@ -43,13 +43,13 @@ jobs:
       - name: Pre-bundle React Native JS Bundle & Assets
         run: |
           mkdir -p ios/assets
-          # Use expo's own bundling for prebuild projects (avoids CLI resolution issues)
-          NODE_BINARY=$(which node) npx expo export:embed \
+          node node_modules/react-native/cli.js bundle \
             --platform ios \
             --dev false \
             --entry-file index.js \
             --bundle-output ios/main.jsbundle \
-            --assets-dest ios/assets
+            --assets-dest ios/assets \
+            --minify true
           echo "Verified JS bundle size: $(wc -c < ios/main.jsbundle) bytes"
 
       - name: Disable Code Signing & Strip Entitlements
