@@ -537,7 +537,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <View style={styles.posterCardMain}>
               {/* Hero track image with Ken Burns */}
               <Animated.Image
-                source={require('../../handoff_extracted/assets/hero-track-banner.jpg')}
+                source={require('../../assets/hero-track-banner.jpg')}
                 style={[
                   styles.posterHeroImg,
                   { transform: [{ scale: kenBurnsAnim }] },

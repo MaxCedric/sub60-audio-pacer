@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,8 +8,12 @@ import {
   SafeAreaView,
   TextInput,
   Modal,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import Svg, { Path, Line, Rect, G, Text as SvgText } from 'react-native-svg';
 import trainingPlanData from '../data/trainingPlan.json';
 import { audioCoach } from '../services/audioCoach';
 import {
@@ -21,96 +25,283 @@ import {
   evaluateWeek7RacePaceTest,
   CheckpointSuggestion,
 } from '../logic/athlete';
-import { calculateHeartRateZones } from '../logic/zones';
 import { formatPaceMinutesSeconds } from '../logic/paces';
+import { queryGeminiCoachingTip } from '../logic/aiCoach';
 import { storageService, CompletedRunSession, CheckpointHistoryItem } from '../services/storage';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+
+// Zone colors
+const ZONE_COLORS: Record<number, string> = {
+  1: '#94A3B8',
+  2: '#9D85FF',
+  3: '#C8FF00',
+  4: '#FFB020',
+  5: '#FF3B5C',
+};
 
 export const StatsScreen: React.FC = () => {
   const [profile, setProfile] = useState<AthleteProfile>(DEFAULT_ATHLETE_PROFILE);
-  const [ltHrBpm, setLtHrBpm] = useState<number>(() => audioCoach.getLactateThresholdHr());
+  const [lthr, setLthr] = useState<number>(176);
+  const [hrmax, setHrmax] = useState<number>(186);
+  const [weightKg, setWeightKg] = useState<number>(73.7);
+  const [cadenceTarget, setCadenceTarget] = useState<number>(172);
+  const [test3kSec, setTest3kSec] = useState<number>(1268);
+  const [geminiKey, setGeminiKey] = useState<string>('');
   const [selectedGoalId, setSelectedGoalId] = useState<GoalId>('sub60');
+
+  // AI Q&A State
+  const [aiQuestion, setAiQuestion] = useState<string>('');
+  const [aiAnswer, setAiAnswer] = useState<string>('');
+  const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
+
+  // Run History & Checkpoints
   const [runSessions, setRunSessions] = useState<CompletedRunSession[]>([]);
   const [checkpoints, setCheckpoints] = useState<CheckpointHistoryItem[]>([]);
 
   // Checkpoint Modal State
   const [isCheckpointModalVisible, setIsCheckpointModalVisible] = useState(false);
   const [checkpointWeek, setCheckpointWeek] = useState<4 | 7>(4);
-  const [test3kTimeInput, setTest3kTimeInput] = useState('21:08');
-  const [testAvgPaceInput, setTestAvgPaceInput] = useState('6:15');
-  const [testAvgHrInput, setTestAvgHrInput] = useState('175');
+  const [cpTimeInput, setCpTimeInput] = useState('21:08');
+  const [cpHrInput, setCpHrInput] = useState('175');
   const [checkpointResult, setCheckpointResult] = useState<CheckpointSuggestion | null>(null);
 
-  // Manual note addition state
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [newDate, setNewDate] = useState('Hôm nay');
-  const [newDist, setNewDist] = useState('6.0');
-  const [newPace, setNewPace] = useState("7'40\"");
-  const [newHr, setNewHr] = useState('156');
-  const [newGood, setNewGood] = useState('');
-  const [newBad, setNewBad] = useState('');
-  const [newFix, setNewFix] = useState('');
+  // Add Note Modal State
+  const [isAddNoteModalVisible, setIsAddNoteModalVisible] = useState(false);
+  const [noteTitle, setNoteTitle] = useState('Bài chạy');
+  const [noteDist, setNoteDist] = useState('6.0');
+  const [notePace, setNotePace] = useState("6'30\"");
+  const [noteHr, setNoteHr] = useState('155');
+  const [noteRpe, setNoteRpe] = useState('6');
+  const [noteGood, setNoteGood] = useState('');
+  const [noteBad, setNoteBad] = useState('');
+  const [noteFix, setNoteFix] = useState('');
 
-  // Load storage data
+  // Load initial data
   useEffect(() => {
     loadData();
   }, []);
 
   const loadData = async () => {
-    const [p, g, sessions, cp] = await Promise.all([
+    const [p, g, sessions, cp, key] = await Promise.all([
       storageService.getAthleteProfile(),
       storageService.getSelectedGoal(),
       storageService.getRunSessions(),
       storageService.getCheckpointHistory(),
+      storageService.getGeminiApiKey(),
     ]);
 
     setProfile(p);
-    setLtHrBpm(p.lactateThresholdHrBpm);
-    setSelectedGoalId(g);
+    setLthr(p.lactateThresholdHrBpm || 176);
+    setHrmax(p.maxHrBpm || 186);
+    setWeightKg(p.weightKg || 73.7);
+    setCadenceTarget(172);
+    setTest3kSec(p.fastest3kSec || 1268);
+    setSelectedGoalId(g || 'sub60');
     setRunSessions(sessions);
     setCheckpoints(cp);
+    setGeminiKey(key);
   };
 
-  const handleAdjustLtHr = async (delta: number) => {
+  // Stepper adjustments
+  const handleStep = (field: 'weightKg' | 'lthr' | 'hrmax' | 'cadenceTarget' | 'test3kSec', delta: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const nextLtHr = Math.max(150, Math.min(195, ltHrBpm + delta));
-    setLtHrBpm(nextLtHr);
-    audioCoach.setLactateThresholdHr(nextLtHr);
-    const updated = { ...profile, lactateThresholdHrBpm: nextLtHr };
-    setProfile(updated);
-    await storageService.saveAthleteProfile(updated);
+    switch (field) {
+      case 'weightKg':
+        setWeightKg((prev) => Math.max(30, Math.min(150, +(prev + delta).toFixed(1))));
+        break;
+      case 'lthr': {
+        setLthr((prev) => {
+          const val = Math.max(120, Math.min(210, prev + delta));
+          audioCoach.setLactateThresholdHr(val);
+          return val;
+        });
+        break;
+      }
+      case 'hrmax':
+        setHrmax((prev) => Math.max(140, Math.min(225, prev + delta)));
+        break;
+      case 'cadenceTarget':
+        setCadenceTarget((prev) => Math.max(130, Math.min(220, prev + delta)));
+        break;
+      case 'test3kSec':
+        setTest3kSec((prev) => Math.max(600, Math.min(2400, prev + delta)));
+        break;
+    }
   };
 
-  // Tính 5 Zone theo chuẩn Joe Friel dựa vào LTHR
-  const zonesInfo = calculateHeartRateZones(ltHrBpm);
+  // Save profile
+  const handleSaveProfile = async () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    const updatedProfile: AthleteProfile = {
+      ...profile,
+      weightKg,
+      lactateThresholdHrBpm: lthr,
+      maxHrBpm: hrmax,
+      fastest3kSec: test3kSec,
+    };
+    setProfile(updatedProfile);
+    await Promise.all([
+      storageService.saveAthleteProfile(updatedProfile),
+      storageService.saveGeminiApiKey(geminiKey),
+    ]);
+    Alert.alert('Đã lưu', 'Thông số Vận động viên đã được cập nhật thành công!');
+  };
 
-  // Tính tổng quãng đường tích lũy từ các buổi chạy thực tế
-  const totalCompletedDistanceMeters = runSessions.reduce(
-    (sum, s) => sum + (s.totalDistanceMeters || 0),
-    0
-  );
-  const totalCompletedKm = (totalCompletedDistanceMeters / 1000).toFixed(2);
+  // VO2max estimation from 3K time
+  const vo2Est = useMemo(() => {
+    const v = 3000 / (test3kSec / 60); // m/min
+    const vo2 = (-4.60 + 0.182258 * v + 0.000104 * v * v) / 0.92;
+    return Math.max(25, Math.min(75, vo2)).toFixed(1);
+  }, [test3kSec]);
 
-  // Tổng quãng đường giáo án
-  const totalPlanKm = trainingPlanData.weeks.reduce(
-    (sum, w) => sum + w.workouts.reduce((wSum, wo) => wSum + wo.totalDistanceKm, 0),
-    0
-  );
+  // 5 HR Zones calculation based on LTHR
+  const zonesData = useMemo(() => {
+    const z1Max = Math.round(lthr * 0.77);
+    const z2Min = z1Max + 1;
+    const z2Max = Math.round(lthr * 0.89);
+    const z3Min = z2Max + 1;
+    const z3Max = Math.round(lthr * 0.97);
+    const z4Min = z3Max + 1;
+    const z4Max = Math.round(lthr * 1.02);
+    const z5Min = z4Max + 1;
 
+    const ltPace = profile.lactateThresholdPaceSecPerKm || 451;
+
+    return [
+      {
+        z: 1,
+        name: 'Phục hồi',
+        color: ZONE_COLORS[1],
+        range: `< ${z1Max} bpm`,
+        pace: `> ${formatPaceMinutesSeconds(ltPace + 90)}`,
+      },
+      {
+        z: 2,
+        name: 'Sức bền hiếu khí',
+        color: ZONE_COLORS[2],
+        range: `${z2Min}–${z2Max} bpm`,
+        pace: `${formatPaceMinutesSeconds(ltPace + 45)}–${formatPaceMinutesSeconds(ltPace + 90)}`,
+      },
+      {
+        z: 3,
+        name: 'Tempo',
+        color: ZONE_COLORS[3],
+        range: `${z3Min}–${z3Max} bpm`,
+        pace: `${formatPaceMinutesSeconds(ltPace + 10)}–${formatPaceMinutesSeconds(ltPace + 40)}`,
+      },
+      {
+        z: 4,
+        name: 'Ngưỡng LTHR',
+        color: ZONE_COLORS[4],
+        range: `${z4Min}–${z4Max} bpm`,
+        pace: `${formatPaceMinutesSeconds(ltPace - 10)}–${formatPaceMinutesSeconds(ltPace + 10)}`,
+      },
+      {
+        z: 5,
+        name: 'Vô khí',
+        color: ZONE_COLORS[5],
+        range: `>= ${z5Min} bpm`,
+        pace: `< ${formatPaceMinutesSeconds(ltPace - 10)}`,
+      },
+    ];
+  }, [lthr, profile.lactateThresholdPaceSecPerKm]);
+
+  // Weekly Volume 9 weeks
+  const weeklyVolume = useMemo(() => {
+    if (trainingPlanData?.weeks && Array.isArray(trainingPlanData.weeks)) {
+      return trainingPlanData.weeks.map((w: any) => {
+        const totalKm = (w.workouts || []).reduce(
+          (acc: number, cur: any) => acc + (cur.totalDistanceKm || 0),
+          0
+        );
+        return {
+          week: w.weekNumber,
+          km: +totalKm.toFixed(1),
+        };
+      });
+    }
+    return [
+      { week: 1, km: 18.0 },
+      { week: 2, km: 21.5 },
+      { week: 3, km: 24.0 },
+      { week: 4, km: 20.0 },
+      { week: 5, km: 26.5 },
+      { week: 6, km: 28.0 },
+      { week: 7, km: 25.0 },
+      { week: 8, km: 30.5 },
+      { week: 9, km: 16.0 },
+    ];
+  }, []);
+
+  const maxVolumeKm = useMemo(() => {
+    return Math.max(...weeklyVolume.map((v) => v.km), 35);
+  }, [weeklyVolume]);
+
+  // AI PT Q&A logic
+  const handleAskAi = async (questionText?: string) => {
+    const q = (questionText || aiQuestion).trim();
+    if (!q) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setIsAiLoading(true);
+    setAiAnswer('');
+
+    try {
+      if (geminiKey) {
+        const geminiResponse = await queryGeminiCoachingTip(
+          geminiKey,
+          `Câu hỏi của vận động viên: "${q}". Hãy trả lời ngắn gọn trong 2-3 câu bằng tiếng Việt theo phong cách huấn luyện viên chạy bộ chuyên nghiệp, an toàn tim mạch.`,
+          profile
+        );
+        if (geminiResponse) {
+          setAiAnswer(geminiResponse);
+          setIsAiLoading(false);
+          return;
+        }
+      }
+
+      // Offline AI PT smart answer
+      const qLower = q.toLowerCase();
+      let answer = '';
+      if (qLower.includes('mỏi') || qLower.includes('bắp chuối') || qLower.includes('đau')) {
+        answer =
+          'PT khuyên: Khi mỏi bắp chuối, hãy khởi động kỹ cổ chân và bắp chân trước chạy. Chạy nhẹ Vùng 1–2 dưới 150 bpm trong 20 phút để phục hồi. Sau chạy nhớ giãn cơ bắp chuối và foam roll 10 phút, không chạy biến tốc khi cơ chưa hồi phục.';
+      } else if (qLower.includes('cầu lông') || qLower.includes('t3')) {
+        answer =
+          'PT khuyên: Buổi thứ 3 đánh cầu lông cường độ cao là cross-training tuyệt vời nhưng gây căng tải khớp gối. Sáng thứ 4 hoặc thứ 5 chỉ nên chạy Easy nhẹ nhàng 25–30 phút, nhịp tim duy trì dưới ngưỡng LTHR 176 để tránh quá tải.';
+      } else if (qLower.includes('nước') || qLower.includes('thở')) {
+        answer =
+          'PT khuyên: Hãy uống từng ngụm nhỏ 100–150ml nước hoặc điện giải mỗi 2–2.5 km. Về nhịp thở: duy trì nhịp 2–2 (2 bước hít vào, 2 bước thở ra) ở Zone 2. Khi lên dốc hoặc tăng tốc, chuyển nhịp 2–1 để nạp đủ oxy cho cơ.';
+      } else {
+        answer = `PT khuyên: Đối với mục tiêu ${GOAL_TIERS[selectedGoalId].name}, chìa khóa là kiên trì tích lũy cự ly ở Vùng 2 (hiếu khí), giữ guồng chân ${cadenceTarget} spm và tuyệt đối không để nhịp tim vượt quá ngưỡng nguy hiểm 190 bpm.`;
+      }
+
+      setTimeout(() => {
+        setAiAnswer(answer);
+        setIsAiLoading(false);
+      }, 350);
+    } catch {
+      setAiAnswer('PT khuyên: Hãy lắng nghe cơ thể, duy trì chạy chậm ở Zone 2 và nghỉ ngơi đủ giấc.');
+      setIsAiLoading(false);
+    }
+  };
+
+  // Evaluate Checkpoint
   const handleEvaluateCheckpoint = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (checkpointWeek === 4) {
-      const parts = test3kTimeInput.replace("'", ':').split(':');
+      const parts = cpTimeInput.replace("'", ':').split(':');
       const m = parseInt(parts[0], 10) || 0;
       const s = parseInt(parts[1], 10) || 0;
       const totalSec = m * 60 + s;
       const res = evaluateWeek4Test3k(totalSec);
       setCheckpointResult(res);
     } else {
-      const parts = testAvgPaceInput.replace("'", ':').split(':');
+      const parts = cpTimeInput.replace("'", ':').split(':');
       const m = parseInt(parts[0], 10) || 0;
       const s = parseInt(parts[1], 10) || 0;
       const avgPace = m * 60 + s;
-      const avgHr = parseInt(testAvgHrInput, 10) || 175;
+      const avgHr = parseInt(cpHrInput, 10) || 175;
       const targetRacePace = GOAL_TIERS[selectedGoalId].targetPaceMinSec;
       const res = evaluateWeek7RacePaceTest(avgPace, avgHr, targetRacePace);
       if (res) {
@@ -128,12 +319,11 @@ export const StatsScreen: React.FC = () => {
     }
   };
 
-  const handleApplyCheckpointDecision = async (acceptSuggestion: boolean) => {
+  const handleApplyCheckpointDecision = async (accept: boolean) => {
     if (!checkpointResult) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-    const chosenGoal: GoalId =
-      acceptSuggestion && checkpointResult.suggestedGoalId
+    const chosenGoal =
+      accept && checkpointResult.suggestedGoalId
         ? checkpointResult.suggestedGoalId
         : selectedGoalId;
 
@@ -143,452 +333,616 @@ export const StatsScreen: React.FC = () => {
       date: new Date().toLocaleDateString('vi-VN'),
       suggestedGoalId: checkpointResult.suggestedGoalId,
       chosenGoalId: chosenGoal,
-      reason: acceptSuggestion
+      reason: accept
         ? checkpointResult.reason
-        : `Người dùng quyết định giữ nguyên ${GOAL_TIERS[selectedGoalId].name}`,
+        : `Người dùng giữ nguyên mục tiêu ${GOAL_TIERS[selectedGoalId].name}`,
     };
 
-    if (acceptSuggestion && checkpointResult.suggestedGoalId) {
-      setSelectedGoalId(checkpointResult.suggestedGoalId);
-      await storageService.saveSelectedGoal(checkpointResult.suggestedGoalId);
-    }
-
+    setSelectedGoalId(chosenGoal);
+    await storageService.saveSelectedGoal(chosenGoal);
     await storageService.saveCheckpointHistory(record);
-    const updatedHistory = await storageService.getCheckpointHistory();
-    setCheckpoints(updatedHistory);
+    setCheckpoints([record, ...checkpoints]);
     setIsCheckpointModalVisible(false);
     setCheckpointResult(null);
+    Alert.alert('Thành công', `Đã cập nhật mục tiêu: ${GOAL_TIERS[chosenGoal].name}`);
   };
 
+  // Add Manual Note
   const handleSaveManualNote = async () => {
+    if (!noteTitle.trim()) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    const distMeters = (parseFloat(newDist) || 0) * 1000;
-    const parts = newPace.replace("'", ':').replace('"', '').split(':');
-    const paceSec = (parseInt(parts[0], 10) || 7) * 60 + (parseInt(parts[1], 10) || 30);
-    const hr = parseInt(newHr, 10) || 155;
-
-    const combinedNote = [
-      newGood ? `Làm tốt: ${newGood}` : '',
-      newBad ? `Chưa được: ${newBad}` : '',
-      newFix ? `Cách sửa: ${newFix}` : '',
-    ]
-      .filter(Boolean)
-      .join(' • ');
+    const distNum = parseFloat(noteDist) || 0;
+    const hrNum = parseInt(noteHr, 10) || null;
+    const rpeNum = Math.min(10, Math.max(1, parseInt(noteRpe, 10) || 6));
 
     const newSession: CompletedRunSession = {
-      id: `run-${Date.now()}`,
-      workoutId: 'manual-entry',
-      workoutTitle: `Buổi chạy ${newDist} km`,
-      date: newDate,
+      id: `manual-${Date.now()}`,
+      workoutId: 'manual',
+      workoutTitle: noteTitle.trim(),
+      date: new Date().toLocaleDateString('vi-VN'),
       timestamp: Date.now(),
-      totalDistanceMeters: distMeters,
-      elapsedSeconds: Math.round((distMeters / 1000) * paceSec),
-      averagePaceSecPerKm: paceSec,
-      averageHrBpm: hr,
-      maxHrBpm: hr + 12,
-      timeInZonesSeconds: { 1: 300, 2: 1200, 3: 600, 4: 0, 5: 0 },
+      totalDistanceMeters: Math.round(distNum * 1000),
+      elapsedSeconds: 0,
+      averagePaceSecPerKm: 390,
+      averageHrBpm: hrNum,
+      maxHrBpm: hrNum,
+      timeInZonesSeconds: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
       splits: [],
-      averageCadenceSpm: null,
+      averageCadenceSpm: cadenceTarget,
       alertsFiredCount: 0,
-      rpeRating: 7,
-      userNote: combinedNote || 'Ghi nhận chạy ngoài giáo án',
+      rpeRating: rpeNum,
+      userNote: noteGood || noteBad ? `${noteGood} | ${noteBad}` : '',
+      goodPoint: noteGood.trim(),
+      badPoint: noteBad.trim(),
+      fixAction: noteFix.trim(),
       goalIdAtRun: selectedGoalId,
     };
 
     await storageService.saveRunSession(newSession);
-    const updated = await storageService.getRunSessions();
-    setRunSessions(updated);
-    setNewGood('');
-    setNewBad('');
-    setNewFix('');
-    setShowAddForm(false);
+    setRunSessions([newSession, ...runSessions]);
+    setIsAddNoteModalVisible(false);
+    setNoteGood('');
+    setNoteBad('');
+    setNoteFix('');
   };
 
-  const ltPace = profile.lactateThresholdPaceSecPerKm;
-  const paceGuides: Record<number, string> = {
-    1: `> ${formatPaceMinutesSeconds(ltPace + 90)}`,
-    2: `${formatPaceMinutesSeconds(ltPace + 45)}–${formatPaceMinutesSeconds(ltPace + 90)}`,
-    3: `${formatPaceMinutesSeconds(ltPace + 10)}–${formatPaceMinutesSeconds(ltPace + 20)}`,
-    4: `${formatPaceMinutesSeconds(ltPace - 5)}–${formatPaceMinutesSeconds(ltPace + 5)}`,
-    5: `< ${formatPaceMinutesSeconds(ltPace - 5)}`,
+  // Format seconds as mm:ss
+  const formatMmSs = (sec: number) => {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.screenTitle}>TIẾN ĐỘ & PHÂN TÍCH PT</Text>
-            <Text style={styles.screenSub}>
-              Mục tiêu: {GOAL_TIERS[selectedGoalId].name} • Race Day {profile.raceDate}
-            </Text>
-          </View>
-          <View style={styles.vo2Badge}>
-            <Text style={styles.vo2Label}>VO2MAX</Text>
-            <Text style={styles.vo2Value}>{profile.vo2Max}</Text>
-          </View>
-        </View>
-
-        {/* Bento KPI Row */}
-        <View style={styles.kpiRow}>
-          <View style={styles.kpiCard}>
-            <Text style={styles.kpiLabel}>TÍCH LŨY 9 TUẦN</Text>
-            <View style={styles.kpiValRow}>
-              <Text style={[styles.kpiBig, { color: '#C8FF00' }]}>{totalCompletedKm}</Text>
-              <Text style={styles.kpiUnit}>/ {totalPlanKm} KM</Text>
+        {/* ================================================================ */}
+        {/* SECTION 1: AI PT Q&A                                             */}
+        {/* ================================================================ */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={styles.cardTitleRow}>
+              <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#C8FF00" strokeWidth={2.3}>
+                <Path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </Svg>
+              <Text style={styles.cardTitle}>Hỏi AI Huấn Luyện Viên</Text>
             </View>
-            <Text style={styles.kpiFoot}>Đã hoàn thành {runSessions.length} buổi chạy</Text>
+            <Text style={styles.aiBadge}>{geminiKey ? 'GEMINI AI PT' : 'OFFLINE AI PT'}</Text>
           </View>
 
-          <View style={styles.kpiCard}>
-            <Text style={styles.kpiLabel}>NGƯỠNG LTHR</Text>
-            <View style={styles.lthrControlRow}>
-              <TouchableOpacity style={styles.stepBtn} onPress={() => handleAdjustLtHr(-1)}>
-                <Text style={styles.stepBtnText}>−</Text>
-              </TouchableOpacity>
-              <Text style={[styles.kpiBig, { color: '#C8FF00' }]}>{ltHrBpm}</Text>
-              <TouchableOpacity style={styles.stepBtn} onPress={() => handleAdjustLtHr(1)}>
-                <Text style={styles.stepBtnText}>+</Text>
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.kpiFoot}>
-              Pace LT: {formatPaceMinutesSeconds(profile.lactateThresholdPaceSecPerKm)} • Max: {profile.maxHrBpm}
-            </Text>
-          </View>
-        </View>
-
-        {/* Checkpoint Banner / Nút Test Mốc */}
-        <View style={styles.checkpointCard}>
-          <View style={styles.checkpointHeader}>
-            <View>
-              <Text style={styles.checkpointTitle}>KIỂM TRA MỐC TIẾN ĐỘ (CHECKPOINTS)</Text>
-              <Text style={styles.checkpointSub}>Đánh giá sau Test 3K tuần 4 và Test Race Pace tuần 7</Text>
-            </View>
+          {/* Quick-Q Chips */}
+          <View style={styles.quickQRow}>
             <TouchableOpacity
-              style={styles.openCpBtn}
+              style={styles.quickQBtn}
               onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setIsCheckpointModalVisible(true);
+                setAiQuestion('Mỏi bắp chuối?');
+                handleAskAi('Mỏi bắp chuối?');
               }}
             >
-              <Text style={styles.openCpBtnText}>ĐÁNH GIÁ</Text>
+              <Text style={styles.quickQText}>Mỏi bắp chuối?</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.quickQBtn}
+              onPress={() => {
+                setAiQuestion('Sau T3 cầu lông chạy gì?');
+                handleAskAi('Sau T3 cầu lông chạy gì?');
+              }}
+            >
+              <Text style={styles.quickQText}>Sau T3 cầu lông chạy gì?</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.quickQBtn}
+              onPress={() => {
+                setAiQuestion('Uống nước & nhịp thở?');
+                handleAskAi('Uống nước & nhịp thở?');
+              }}
+            >
+              <Text style={styles.quickQText}>Uống nước &amp; nhịp thở?</Text>
             </TouchableOpacity>
           </View>
 
-          {checkpoints.length > 0 ? (
-            <View style={styles.latestCpBox}>
-              <Text style={styles.latestCpTitle}>
-                Mốc gần nhất ({checkpoints[0].checkpointName} - {checkpoints[0].date}):
-              </Text>
-              <Text style={styles.latestCpText}>{checkpoints[0].reason}</Text>
-              <Text style={styles.latestCpDecision}>Lựa chọn: {GOAL_TIERS[checkpoints[0].chosenGoalId].name}</Text>
+          {/* Input & Ask Button */}
+          <View style={styles.inputRow}>
+            <TextInput
+              style={styles.textInput}
+              placeholder="Hỏi PT..."
+              placeholderTextColor="#64748B"
+              value={aiQuestion}
+              onChangeText={setAiQuestion}
+              onSubmitEditing={() => handleAskAi()}
+            />
+            <TouchableOpacity style={styles.btnAskAi} onPress={() => handleAskAi()} disabled={isAiLoading}>
+              {isAiLoading ? (
+                <ActivityIndicator size="small" color="#08090C" />
+              ) : (
+                <Text style={styles.btnAskAiText}>Hỏi</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* AI Answer Box */}
+          {aiAnswer ? (
+            <View style={styles.answerBox}>
+              <Text style={styles.answerText}>{aiAnswer}</Text>
+            </View>
+          ) : null}
+        </View>
+
+        {/* ================================================================ */}
+        {/* SECTION 2: ATHLETE PROFILE (Thông số Vận động viên)               */}
+        {/* ================================================================ */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={styles.cardTitleRow}>
+              <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#9D85FF" strokeWidth={2.3}>
+                <Path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <Path d="M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" />
+              </Svg>
+              <Text style={styles.cardTitle}>Thông số Vận động viên</Text>
+            </View>
+            <TouchableOpacity style={styles.btnSaveProfile} onPress={handleSaveProfile}>
+              <Text style={styles.btnSaveProfileText}>Lưu</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Steppers Grid */}
+          <View style={styles.steppersGrid}>
+            {/* Weight */}
+            <View style={styles.stepperItem}>
+              <Text style={styles.stepperLabel}>Cân nặng (kg)</Text>
+              <View style={styles.stepperControl}>
+                <TouchableOpacity style={styles.stepperBtn} onPress={() => handleStep('weightKg', -0.5)}>
+                  <Text style={styles.stepperBtnText}>−</Text>
+                </TouchableOpacity>
+                <Text style={styles.stepperValue}>{weightKg.toFixed(1)}</Text>
+                <TouchableOpacity style={styles.stepperBtn} onPress={() => handleStep('weightKg', 0.5)}>
+                  <Text style={styles.stepperBtnText}>+</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* LTHR */}
+            <View style={styles.stepperItem}>
+              <Text style={styles.stepperLabel}>LTHR (bpm)</Text>
+              <View style={styles.stepperControl}>
+                <TouchableOpacity style={styles.stepperBtn} onPress={() => handleStep('lthr', -1)}>
+                  <Text style={styles.stepperBtnText}>−</Text>
+                </TouchableOpacity>
+                <Text style={[styles.stepperValue, { color: '#C8FF00' }]}>{lthr}</Text>
+                <TouchableOpacity style={styles.stepperBtn} onPress={() => handleStep('lthr', 1)}>
+                  <Text style={styles.stepperBtnText}>+</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* HRmax */}
+            <View style={styles.stepperItem}>
+              <Text style={styles.stepperLabel}>HRmax (bpm)</Text>
+              <View style={styles.stepperControl}>
+                <TouchableOpacity style={styles.stepperBtn} onPress={() => handleStep('hrmax', -1)}>
+                  <Text style={styles.stepperBtnText}>−</Text>
+                </TouchableOpacity>
+                <Text style={styles.stepperValue}>{hrmax}</Text>
+                <TouchableOpacity style={styles.stepperBtn} onPress={() => handleStep('hrmax', 1)}>
+                  <Text style={styles.stepperBtnText}>+</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Cadence SPM */}
+            <View style={styles.stepperItem}>
+              <Text style={styles.stepperLabel}>SPM (Nhịp bước)</Text>
+              <View style={styles.stepperControl}>
+                <TouchableOpacity style={styles.stepperBtn} onPress={() => handleStep('cadenceTarget', -2)}>
+                  <Text style={styles.stepperBtnText}>−</Text>
+                </TouchableOpacity>
+                <Text style={styles.stepperValue}>{cadenceTarget}</Text>
+                <TouchableOpacity style={styles.stepperBtn} onPress={() => handleStep('cadenceTarget', 2)}>
+                  <Text style={styles.stepperBtnText}>+</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Test 3K */}
+            <View style={[styles.stepperItem, { flexBasis: '100%' }]}>
+              <Text style={styles.stepperLabel}>Thành tích Test 3K</Text>
+              <View style={styles.stepperControl}>
+                <TouchableOpacity style={styles.stepperBtn} onPress={() => handleStep('test3kSec', -5)}>
+                  <Text style={styles.stepperBtnText}>−</Text>
+                </TouchableOpacity>
+                <Text style={[styles.stepperValue, { color: '#9D85FF' }]}>
+                  {formatMmSs(test3kSec)} ({test3kSec}s)
+                </Text>
+                <TouchableOpacity style={styles.stepperBtn} onPress={() => handleStep('test3kSec', 5)}>
+                  <Text style={styles.stepperBtnText}>+</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+
+          {/* Gemini API Key */}
+          <TextInput
+            style={styles.keyInput}
+            secureTextEntry
+            placeholder="Gemini API Key (tùy chọn để kích hoạt AI Pro)"
+            placeholderTextColor="#64748B"
+            value={geminiKey}
+            onChangeText={setGeminiKey}
+          />
+        </View>
+
+        {/* ================================================================ */}
+        {/* SECTION 3: 5 HR ZONES (5 Vùng Tim)                               */}
+        {/* ================================================================ */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>
+              5 Vùng Tim (LTHR <Text style={{ color: '#C8FF00' }}>{lthr}</Text>)
+            </Text>
+            <Text style={styles.vo2Badge}>
+              VO2max ~<Text style={{ color: '#9D85FF' }}>{vo2Est}</Text>
+            </Text>
+          </View>
+
+          <View style={styles.zonesTable}>
+            {zonesData.map((item) => (
+              <View key={item.z} style={styles.zoneRow}>
+                <View style={styles.zoneLeft}>
+                  <View style={[styles.zonePill, { backgroundColor: item.color }]}>
+                    <Text style={styles.zonePillText}>Z{item.z}</Text>
+                  </View>
+                  <Text style={styles.zoneName}>{item.name}</Text>
+                </View>
+                <View style={styles.zoneRight}>
+                  <Text style={styles.zoneRange}>{item.range}</Text>
+                  <Text style={styles.zonePace}>{item.pace}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* ================================================================ */}
+        {/* SECTION 4: WEEKLY VOLUME CHART (Khối lượng 9 tuần)               */}
+        {/* ================================================================ */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={styles.cardTitleRow}>
+              <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#C8FF00" strokeWidth={2.3}>
+                <Line x1="18" y1="20" x2="18" y2="10" />
+                <Line x1="12" y1="20" x2="12" y2="4" />
+                <Line x1="6" y1="20" x2="6" y2="14" />
+              </Svg>
+              <Text style={styles.cardTitle}>Khối lượng 9 tuần (km)</Text>
+            </View>
+            <TouchableOpacity onPress={() => setIsCheckpointModalVisible(true)}>
+              <Text style={styles.checkpointLink}>Đánh giá Checkpoint ▾</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* SVG Bar Chart */}
+          <View style={styles.chartContainer}>
+            <Svg width={SCREEN_WIDTH - 64} height={170}>
+              {/* Horizontal reference grid lines */}
+              <Line x1={0} y1={25} x2={SCREEN_WIDTH - 64} y2={25} stroke="#1E202B" strokeWidth={1} />
+              <Line x1={0} y1={75} x2={SCREEN_WIDTH - 64} y2={75} stroke="#1E202B" strokeWidth={1} />
+              <Line x1={0} y1={125} x2={SCREEN_WIDTH - 64} y2={125} stroke="#1E202B" strokeWidth={1} />
+
+              {weeklyVolume.map((item, idx) => {
+                const totalBars = weeklyVolume.length;
+                const chartWidth = SCREEN_WIDTH - 64;
+                const slotWidth = chartWidth / totalBars;
+                const barWidth = Math.min(22, slotWidth - 8);
+                const x = idx * slotWidth + (slotWidth - barWidth) / 2;
+
+                const maxBarHeight = 100;
+                const barHeight = Math.max(10, (item.km / maxVolumeKm) * maxBarHeight);
+                const y = 135 - barHeight;
+
+                const barColor =
+                  item.week === 7 ? '#4B2EFF' : item.week === 9 ? '#FF3B5C' : '#C8FF00';
+
+                return (
+                  <G key={item.week}>
+                    {/* Km value text above bar */}
+                    <SvgText
+                      x={x + barWidth / 2}
+                      y={y - 5}
+                      fill="#94A3B8"
+                      fontSize={10}
+                      fontWeight="bold"
+                      textAnchor="middle"
+                    >
+                      {item.km}
+                    </SvgText>
+
+                    {/* Bar */}
+                    <Rect
+                      x={x}
+                      y={y}
+                      width={barWidth}
+                      height={barHeight}
+                      fill={barColor}
+                      rx={3}
+                      ry={3}
+                    />
+
+                    {/* Week label below bar */}
+                    <SvgText
+                      x={x + barWidth / 2}
+                      y={155}
+                      fill="#94A3B8"
+                      fontSize={11}
+                      fontWeight="bold"
+                      textAnchor="middle"
+                    >
+                      T{item.week}
+                    </SvgText>
+                  </G>
+                );
+              })}
+            </Svg>
+          </View>
+        </View>
+
+        {/* ================================================================ */}
+        {/* SECTION 5: RUN HISTORY (Nhật ký buổi chạy)                       */}
+        {/* ================================================================ */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={styles.cardTitleRow}>
+              <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#9D85FF" strokeWidth={2.3}>
+                <Path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <Path d="M14 2v6h6" />
+                <Line x1="16" y1="13" x2="8" y2="13" />
+                <Line x1="16" y1="17" x2="8" y2="17" />
+              </Svg>
+              <Text style={styles.cardTitle}>Nhật ký buổi chạy</Text>
+            </View>
+            <TouchableOpacity onPress={() => setIsAddNoteModalVisible(true)}>
+              <Text style={styles.btnAddNote}>+ Ghi Note</Text>
+            </TouchableOpacity>
+          </View>
+
+          {runSessions.length === 0 ? (
+            <View style={styles.emptyHistory}>
+              <Text style={styles.emptyHistoryText}>Chưa có dữ liệu buổi chạy.</Text>
             </View>
           ) : (
-            <Text style={styles.noCpText}>Chưa có bài test checkpoint nào được ghi nhận.</Text>
+            <View style={styles.historyList}>
+              {runSessions.map((session) => {
+                const distKm = (session.totalDistanceMeters / 1000).toFixed(2);
+                const paceStr = formatPaceMinutesSeconds(session.averagePaceSecPerKm);
+                return (
+                  <View key={session.id} style={styles.historyItem}>
+                    <View style={styles.historyItemTop}>
+                      <Text style={styles.historyItemTitle} numberOfLines={1}>
+                        {session.workoutTitle || 'Buổi chạy'}
+                      </Text>
+                      <Text style={styles.historyItemMetrics}>
+                        {distKm} km · {paceStr} · RPE {session.rpeRating}
+                      </Text>
+                    </View>
+                    <Text style={styles.historyNotesText}>
+                      <Text style={{ color: '#C8FF00', fontWeight: 'bold' }}>Tốt: </Text>
+                      {session.goodPoint || '--'} ·{' '}
+                      <Text style={{ color: '#FFB020', fontWeight: 'bold' }}>Chưa được: </Text>
+                      {session.badPoint || '--'} ·{' '}
+                      <Text style={{ color: '#9D85FF', fontWeight: 'bold' }}>Sửa: </Text>
+                      {session.fixAction || '--'}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
           )}
         </View>
 
-        {/* Section 1: Bảng 5 Zone Joe Friel */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>5 VÙNG TIM THEO JOE FRIEL (LTHR {ltHrBpm} BPM)</Text>
-            <Text style={styles.sectionTag}>TỰ ĐỘNG CẬP NHẬT</Text>
-          </View>
-
-          {zonesInfo.map((z) => (
-            <View key={z.zone} style={styles.zoneRow}>
-              <View style={[styles.zoneBadge, { backgroundColor: z.color }]}>
-                <Text style={styles.zoneBadgeText}>Z{z.zone}</Text>
-              </View>
-              <View style={styles.zoneInfoMid}>
-                <Text style={styles.zoneName}>{z.name}</Text>
-                <Text style={styles.zonePace}>Pace tập: {paceGuides[z.zone]}</Text>
-              </View>
-              <Text style={[styles.zoneHrText, { color: z.color }]}>
-                {z.zone === 1 ? `< ${z.maxHr + 1} bpm` : z.zone === 5 ? `≥ ${z.minHr} bpm` : `${z.minHr}–${z.maxHr} bpm`}
-              </Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Section 2: Post-Run Note & Lịch sử buổi chạy */}
-        <View style={styles.noteSectionHeader}>
-          <Text style={styles.sectionTitle}>LỊCH SỬ & NHẬT KÝ BUỔI CHẠY</Text>
-          <TouchableOpacity
-            style={styles.addNoteBtn}
-            onPress={() => {
-              Haptics.selectionAsync();
-              setShowAddForm(!showAddForm);
-            }}
-          >
-            <Text style={styles.addNoteBtnText}>{showAddForm ? 'ĐÓNG' : '+ GHI NOTE MỚI'}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {showAddForm ? (
-          <View style={styles.formCard}>
-            <Text style={styles.formTitle}>Ghi nhanh kết quả & bài học buổi chạy</Text>
-            <View style={styles.formRow3}>
-              <View style={styles.formCol}>
-                <Text style={styles.inputLabel}>Ngày</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newDate}
-                  onChangeText={setNewDate}
-                  placeholder="14/11"
-                  placeholderTextColor="#475569"
-                />
-              </View>
-              <View style={styles.formCol}>
-                <Text style={styles.inputLabel}>Cự ly (km)</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newDist}
-                  onChangeText={setNewDist}
-                  placeholder="6.0"
-                  placeholderTextColor="#475569"
-                  keyboardType="numbers-and-punctuation"
-                />
-              </View>
-              <View style={styles.formCol}>
-                <Text style={styles.inputLabel}>Pace TB</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newPace}
-                  onChangeText={setNewPace}
-                  placeholder="7'40"
-                  placeholderTextColor="#475569"
-                />
-              </View>
-              <View style={styles.formCol}>
-                <Text style={styles.inputLabel}>Tim TB</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newHr}
-                  onChangeText={setNewHr}
-                  placeholder="156"
-                  placeholderTextColor="#475569"
-                  keyboardType="numeric"
-                />
-              </View>
-            </View>
-
-            <Text style={styles.inputLabel}>Đã làm tốt (Điểm cộng)</Text>
-            <TextInput
-              style={styles.input}
-              value={newGood}
-              onChangeText={setNewGood}
-              placeholder="VD: Giữ nhịp tim dưới 157 bpm suốt 4 km đầu"
-              placeholderTextColor="#475569"
-            />
-
-            <Text style={styles.inputLabel}>Chưa được (Điểm nghẽn)</Text>
-            <TextInput
-              style={styles.input}
-              value={newBad}
-              onChangeText={setNewBad}
-              placeholder="VD: Km cuối hụt hơi, sải chân quá dài"
-              placeholderTextColor="#475569"
-            />
-
-            <Text style={styles.inputLabel}>Cách sửa buổi tới (Action)</Text>
-            <TextInput
-              style={styles.input}
-              value={newFix}
-              onChangeText={setNewFix}
-              placeholder="VD: Bật Metronome 172 bpm để bước chân ngắn lại"
-              placeholderTextColor="#475569"
-            />
-
-            <TouchableOpacity style={styles.saveNoteBtn} onPress={handleSaveManualNote}>
-              <Text style={styles.saveNoteBtnText}>LƯU VÀO NHẬT KÝ PT</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-
-        {runSessions.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyCardText}>
-              Chưa có dữ liệu buổi chạy nào. Hãy chọn bài tập tại màn hình Giáo Án và bấm "CHẠY NGAY VỚI AUDIO COACH"!
-            </Text>
-          </View>
-        ) : (
-          runSessions.map((session) => {
-            const distKm = (session.totalDistanceMeters / 1000).toFixed(2);
-            const paceStr = formatPaceMinutesSeconds(session.averagePaceSecPerKm);
-
-            return (
-              <View key={session.id} style={styles.noteCard}>
-                <View style={styles.noteTopRow}>
-                  <View style={styles.noteDatePill}>
-                    <Text style={styles.noteDateText}>{session.date}</Text>
-                  </View>
-                  <Text style={styles.noteMetrics}>
-                    {distKm} KM • Pace {paceStr} • HR {session.averageHrBpm ?? '--'} bpm
-                  </Text>
-                </View>
-
-                <Text style={styles.sessionTitle}>{session.workoutTitle}</Text>
-
-                {session.rpeRating ? (
-                  <View style={styles.rpeBadgeRow}>
-                    <Text style={styles.rpeBadgeLabel}>ĐỘ GẮNG SỨC (RPE):</Text>
-                    <Text style={styles.rpeBadgeVal}>{session.rpeRating}/10</Text>
-                  </View>
-                ) : null}
-
-                {session.userNote ? (
-                  <View style={styles.noteGridRow}>
-                    <Text style={styles.noteBodyText}>{session.userNote}</Text>
-                  </View>
-                ) : null}
-
-                {/* Splits nếu có */}
-                {session.splits && session.splits.length > 0 ? (
-                  <View style={styles.splitsMiniRow}>
-                    {session.splits.map((sp) => (
-                      <View key={sp.km} style={styles.splitMiniItem}>
-                        <Text style={styles.splitMiniKm}>KM {sp.km}</Text>
-                        <Text style={styles.splitMiniPace}>{formatPaceMinutesSeconds(sp.paceSecPerKm)}</Text>
-                      </View>
-                    ))}
-                  </View>
-                ) : null}
-              </View>
-            );
-          })
-        )}
+        <View style={{ height: 60 }} />
       </ScrollView>
 
-      {/* Modal Kiểm Tra Checkpoint */}
+      {/* ================================================================ */}
+      {/* MODAL: ADD MANUAL NOTE                                           */}
+      {/* ================================================================ */}
       <Modal
-        visible={isCheckpointModalVisible}
+        visible={isAddNoteModalVisible}
+        transparent
         animationType="slide"
-        transparent={true}
-        onRequestClose={() => setIsCheckpointModalVisible(false)}
+        onRequestClose={() => setIsAddNoteModalVisible(false)}
       >
-        <SafeAreaView style={styles.modalOverlay}>
+        <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>ĐÁNH GIÁ MỐC CHECKPOINT</Text>
-              <TouchableOpacity
-                onPress={() => setIsCheckpointModalVisible(false)}
-                style={styles.modalCloseBtn}
-              >
-                <Text style={styles.modalCloseText}>✕</Text>
+              <Text style={styles.modalTitle}>Ghi chú buổi chạy</Text>
+              <TouchableOpacity onPress={() => setIsAddNoteModalVisible(false)}>
+                <Text style={styles.modalCloseBtn}>✕</Text>
               </TouchableOpacity>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-              <View style={styles.cpWeekTabsRow}>
-                <TouchableOpacity
-                  style={[styles.cpWeekTab, checkpointWeek === 4 && styles.cpWeekTabActive]}
-                  onPress={() => {
-                    setCheckpointWeek(4);
-                    setCheckpointResult(null);
-                  }}
-                >
-                  <Text style={[styles.cpWeekTabText, checkpointWeek === 4 && styles.textDark]}>
-                    TUẦN 4: TEST 3 KM
-                  </Text>
-                </TouchableOpacity>
+              <Text style={styles.fieldLabel}>Tên buổi chạy</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={noteTitle}
+                onChangeText={setNoteTitle}
+                placeholder="VD: Long Run 8 km"
+                placeholderTextColor="#64748B"
+              />
 
-                <TouchableOpacity
-                  style={[styles.cpWeekTab, checkpointWeek === 7 && styles.cpWeekTabActive]}
-                  onPress={() => {
-                    setCheckpointWeek(7);
-                    setCheckpointResult(null);
-                  }}
-                >
-                  <Text style={[styles.cpWeekTabText, checkpointWeek === 7 && styles.textDark]}>
-                    TUẦN 7: TEST RACE PACE
-                  </Text>
-                </TouchableOpacity>
+              <View style={styles.twoColRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.fieldLabel}>Cự ly (km)</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={noteDist}
+                    onChangeText={setNoteDist}
+                    keyboardType="numeric"
+                    placeholder="6.0"
+                    placeholderTextColor="#64748B"
+                  />
+                </View>
+                <View style={{ width: 12 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.fieldLabel}>RPE (1-10)</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={noteRpe}
+                    onChangeText={setNoteRpe}
+                    keyboardType="numeric"
+                    placeholder="6"
+                    placeholderTextColor="#64748B"
+                  />
+                </View>
               </View>
 
-              {checkpointWeek === 4 ? (
-                <View style={styles.cpFormBox}>
-                  <Text style={styles.formLabel}>Thời gian hoàn thành Test 3 km (phút:giây):</Text>
-                  <TextInput
-                    style={styles.formInput}
-                    value={test3kTimeInput}
-                    onChangeText={setTest3kTimeInput}
-                    placeholder="21:08"
-                    placeholderTextColor="#64748B"
-                  />
-                  <Text style={styles.formHint}>
-                    Mốc đánh giá: ≤18:30 (Đúng hướng Sub 60), 18:31–19:30 (Gợi ý Sub 65), &gt;19:30 (Gợi ý Dưới 70).
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.cpFormBox}>
-                  <Text style={styles.formLabel}>Pace TB đoạn 2 km race pace (phút:giây):</Text>
-                  <TextInput
-                    style={styles.formInput}
-                    value={testAvgPaceInput}
-                    onChangeText={setTestAvgPaceInput}
-                    placeholder="6:15"
-                    placeholderTextColor="#64748B"
-                  />
-                  <Text style={styles.formLabel}>Nhịp tim TB đoạn test (bpm):</Text>
-                  <TextInput
-                    style={styles.formInput}
-                    value={testAvgHrInput}
-                    onChangeText={setTestAvgHrInput}
-                    placeholder="175"
-                    placeholderTextColor="#64748B"
-                    keyboardType="numeric"
-                  />
-                  <Text style={styles.formHint}>
-                    Nếu chậm hơn race pace &gt;15 s/km hoặc HR TB ≥186 bpm → gợi ý hạ một bậc an toàn.
-                  </Text>
-                </View>
-              )}
+              <Text style={styles.fieldLabel}>Điểm tốt (Tốt)</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={noteGood}
+                onChangeText={setNoteGood}
+                placeholder="VD: Nhịp tim Vùng 2 ổn định, không mệt..."
+                placeholderTextColor="#64748B"
+              />
 
-              <TouchableOpacity style={styles.evalBtn} onPress={handleEvaluateCheckpoint}>
-                <Text style={styles.evalBtnText}>KIỂM TRA VÀ ĐƯA RA GỢI Ý</Text>
+              <Text style={styles.fieldLabel}>Điểm chưa được (Chưa được)</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={noteBad}
+                onChangeText={setNoteBad}
+                placeholder="VD: Km cuối hơi đuối, sải chân hơi dài..."
+                placeholderTextColor="#64748B"
+              />
+
+              <Text style={styles.fieldLabel}>Khắc phục (Sửa)</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={noteFix}
+                onChangeText={setNoteFix}
+                placeholder="VD: Giữ guồng chân 172 spm đều hơn..."
+                placeholderTextColor="#64748B"
+              />
+
+              <TouchableOpacity style={styles.btnSaveNote} onPress={handleSaveManualNote}>
+                <Text style={styles.btnSaveNoteText}>LƯU NHẬT KÝ</Text>
               </TouchableOpacity>
-
-              {checkpointResult ? (
-                <View style={styles.resultBox}>
-                  <Text style={styles.resultTitle}>KẾT QUẢ PHÂN TÍCH PT:</Text>
-                  <Text style={styles.resultText}>{checkpointResult.message}</Text>
-                  <Text style={styles.resultReason}>{checkpointResult.reason}</Text>
-
-                  {checkpointResult.suggestedGoalId ? (
-                    <View style={styles.decisionActionsRow}>
-                      <TouchableOpacity
-                        style={styles.acceptBtn}
-                        onPress={() => handleApplyCheckpointDecision(true)}
-                      >
-                        <Text style={styles.acceptBtnText}>
-                          ĐỒNG Ý CHUYỂN SANG {GOAL_TIERS[checkpointResult.suggestedGoalId].name.toUpperCase()}
-                        </Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={styles.keepBtn}
-                        onPress={() => handleApplyCheckpointDecision(false)}
-                      >
-                        <Text style={styles.keepBtnText}>
-                          GIỮ NGUYÊN {GOAL_TIERS[selectedGoalId].name.toUpperCase()}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  ) : (
-                    <TouchableOpacity
-                      style={styles.acceptBtn}
-                      onPress={() => handleApplyCheckpointDecision(false)}
-                    >
-                      <Text style={styles.acceptBtnText}>LƯU VÀ TIẾP TỤC</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              ) : null}
             </ScrollView>
           </View>
-        </SafeAreaView>
+        </View>
+      </Modal>
+
+      {/* ================================================================ */}
+      {/* MODAL: CHECKPOINT EVALUATION                                     */}
+      {/* ================================================================ */}
+      <Modal
+        visible={isCheckpointModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setIsCheckpointModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Đánh giá Checkpoint</Text>
+              <TouchableOpacity onPress={() => setIsCheckpointModalVisible(false)}>
+                <Text style={styles.modalCloseBtn}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Checkpoint Tabs */}
+            <View style={styles.cpTabsRow}>
+              <TouchableOpacity
+                style={[styles.cpTabBtn, checkpointWeek === 4 && styles.cpTabBtnActive]}
+                onPress={() => {
+                  setCheckpointWeek(4);
+                  setCpTimeInput('21:08');
+                  setCheckpointResult(null);
+                }}
+              >
+                <Text
+                  style={[styles.cpTabText, checkpointWeek === 4 && styles.cpTabTextActive]}
+                >
+                  Tuần 4 (Test 3K)
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.cpTabBtn, checkpointWeek === 7 && styles.cpTabBtnActive]}
+                onPress={() => {
+                  setCheckpointWeek(7);
+                  setCpTimeInput('5:58');
+                  setCheckpointResult(null);
+                }}
+              >
+                <Text
+                  style={[styles.cpTabText, checkpointWeek === 7 && styles.cpTabTextActive]}
+                >
+                  Tuần 7 (2K Race Pace)
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.fieldLabel}>
+                {checkpointWeek === 4
+                  ? 'Thành tích Test 3 km (mm:ss)'
+                  : 'Pace TB 2 km Race Pace (mm:ss)'}
+              </Text>
+              <TextInput
+                style={styles.modalInput}
+                value={cpTimeInput}
+                onChangeText={setCpTimeInput}
+                placeholder="21:08"
+                placeholderTextColor="#64748B"
+              />
+
+              {checkpointWeek === 7 && (
+                <>
+                  <Text style={styles.fieldLabel}>Nhịp tim trung bình (bpm)</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={cpHrInput}
+                    onChangeText={setCpHrInput}
+                    keyboardType="numeric"
+                    placeholder="175"
+                    placeholderTextColor="#64748B"
+                  />
+                </>
+              )}
+
+              <TouchableOpacity
+                style={styles.btnEvalCheckpoint}
+                onPress={handleEvaluateCheckpoint}
+              >
+                <Text style={styles.btnEvalCheckpointText}>KIỂM TRA CHECKPOINT</Text>
+              </TouchableOpacity>
+
+              {checkpointResult && (
+                <View style={styles.cpResultBox}>
+                  <Text style={styles.cpResultTitle}>{checkpointResult.checkpointName}</Text>
+                  <Text style={styles.cpResultMessage}>{checkpointResult.message}</Text>
+                  <Text style={styles.cpResultReason}>{checkpointResult.reason}</Text>
+
+                  <View style={styles.cpActionRow}>
+                    <TouchableOpacity
+                      style={styles.cpBtnApply}
+                      onPress={() => handleApplyCheckpointDecision(true)}
+                    >
+                      <Text style={styles.cpBtnApplyText}>ÁP DỤNG ĐỀ XUẤT</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.cpBtnKeep}
+                      onPress={() => handleApplyCheckpointDecision(false)}
+                    >
+                      <Text style={styles.cpBtnKeepText}>GIỮ NGUYÊN</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -601,557 +955,395 @@ const styles = StyleSheet.create({
   },
   container: {
     padding: 16,
-    paddingBottom: 40,
+    gap: 16,
   },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  screenTitle: {
-    color: '#F8FAFC',
-    fontSize: 20,
-    fontWeight: '900',
-    letterSpacing: -0.3,
-  },
-  screenSub: {
-    color: '#64748B',
-    fontSize: 11,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  vo2Badge: {
+  card: {
     backgroundColor: '#111218',
-    borderWidth: 1,
-    borderColor: '#C8FF00',
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    alignItems: 'center',
-  },
-  vo2Label: {
-    color: '#C8FF00',
-    fontSize: 9,
-    fontWeight: '800',
-  },
-  vo2Value: {
-    color: '#F8FAFC',
-    fontSize: 18,
-    fontWeight: '900',
-  },
-  kpiRow: {
-    flexDirection: 'row',
+    borderRadius: 16,
+    padding: 16,
     gap: 12,
-    marginBottom: 14,
   },
-  kpiCard: {
-    flex: 1,
-    backgroundColor: '#111218',
-    borderRadius: 18,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#252838',
-  },
-  kpiLabel: {
-    color: '#64748B',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.6,
-    marginBottom: 4,
-  },
-  kpiValRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 4,
-    marginVertical: 2,
-  },
-  kpiBig: {
-    fontSize: 26,
-    fontWeight: '900',
-    fontVariant: ['tabular-nums'],
-    color: '#F8FAFC',
-  },
-  kpiUnit: {
-    color: '#64748B',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  kpiFoot: {
-    color: '#94A3B8',
-    fontSize: 10,
-    fontWeight: '600',
-    marginTop: 4,
-  },
-  lthrControlRow: {
+  cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginVertical: 2,
   },
-  stepBtn: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: '#252838',
+  cardTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  cardTitle: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    textTransform: 'uppercase',
+  },
+  aiBadge: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#9D85FF',
+  },
+  quickQRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  quickQBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: '#181A24',
+  },
+  quickQText: {
+    fontSize: 12,
+    color: '#CBD5E1',
+    fontWeight: '600',
+  },
+  inputRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  textInput: {
+    flex: 1,
+    backgroundColor: '#08090C',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 13,
+    color: '#FFFFFF',
+  },
+  btnAskAi: {
+    backgroundColor: '#C8FF00',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  stepBtnText: {
-    color: '#F8FAFC',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  checkpointCard: {
-    backgroundColor: '#111218',
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(200,255,0,0.2)',
-    padding: 14,
-    marginBottom: 14,
-  },
-  checkpointHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  checkpointTitle: {
-    color: '#C8FF00',
-    fontSize: 12,
+  btnAskAiText: {
+    color: '#08090C',
+    fontSize: 13,
     fontWeight: '900',
-    letterSpacing: 0.5,
   },
-  checkpointSub: {
-    color: '#64748B',
-    fontSize: 10,
-    fontWeight: '600',
-    marginTop: 2,
+  answerBox: {
+    backgroundColor: '#08090C',
+    borderRadius: 12,
+    padding: 14,
   },
-  openCpBtn: {
+  answerText: {
+    fontSize: 13,
+    color: '#E2E8F0',
+    lineHeight: 20,
+  },
+  btnSaveProfile: {
     backgroundColor: '#C8FF00',
     paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
   },
-  openCpBtnText: {
+  btnSaveProfileText: {
     color: '#08090C',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '900',
   },
-  latestCpBox: {
-    marginTop: 10,
-    backgroundColor: '#08090C',
-    borderRadius: 10,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#252838',
-  },
-  latestCpTitle: {
-    color: '#94A3B8',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  latestCpText: {
-    color: '#F8FAFC',
-    fontSize: 12,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  latestCpDecision: {
-    color: '#C8FF00',
-    fontSize: 11,
-    fontWeight: '800',
-    marginTop: 4,
-  },
-  noCpText: {
-    color: '#64748B',
-    fontSize: 11,
-    fontStyle: 'italic',
-    marginTop: 8,
-  },
-  sectionCard: {
-    backgroundColor: '#111218',
-    borderRadius: 18,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#252838',
-    marginBottom: 14,
-  },
-  sectionHeaderRow: {
+  steppersGrid: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  stepperItem: {
+    flexBasis: '48%',
+    backgroundColor: '#08090C',
+    borderRadius: 12,
+    padding: 10,
+    gap: 6,
+  },
+  stepperLabel: {
+    fontSize: 11,
+    color: '#94A3B8',
+    fontWeight: '600',
+  },
+  stepperControl: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    justifyContent: 'space-between',
   },
-  sectionTitle: {
-    color: '#F8FAFC',
+  stepperBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: '#181A24',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepperBtnText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  stepperValue: {
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '900',
+    color: '#FFFFFF',
   },
-  sectionTag: {
-    color: '#C8FF00',
-    fontSize: 9,
+  keyInput: {
+    backgroundColor: '#08090C',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 12,
+    color: '#FFFFFF',
+  },
+  vo2Badge: {
+    fontSize: 12,
     fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  zonesTable: {
+    gap: 8,
   },
   zoneRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#08090C',
+    borderRadius: 12,
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#25283833',
   },
-  zoneBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    width: 38,
+  zoneLeft: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
   },
-  zoneBadgeText: {
-    color: '#08090C',
+  zonePill: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  zonePillText: {
     fontSize: 11,
     fontWeight: '900',
-  },
-  zoneInfoMid: {
-    flex: 1,
-    marginLeft: 10,
+    color: '#08090C',
   },
   zoneName: {
-    color: '#F8FAFC',
     fontSize: 12,
     fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  zoneRight: {
+    alignItems: 'flex-end',
+  },
+  zoneRange: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
   zonePace: {
-    color: '#64748B',
-    fontSize: 10,
-    fontWeight: '600',
-    marginTop: 1,
+    fontSize: 11,
+    color: '#94A3B8',
   },
-  zoneHrText: {
+  checkpointLink: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#9D85FF',
+  },
+  chartContainer: {
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  btnAddNote: {
     fontSize: 12,
     fontWeight: '800',
-    fontVariant: ['tabular-nums'],
-  },
-  noteSectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 4,
-    marginBottom: 12,
-  },
-  addNoteBtn: {
-    backgroundColor: '#252838',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 10,
-  },
-  addNoteBtnText: {
     color: '#C8FF00',
-    fontSize: 11,
-    fontWeight: '800',
   },
-  formCard: {
-    backgroundColor: '#111218',
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#252838',
-    marginBottom: 14,
+  emptyHistory: {
+    paddingVertical: 12,
+    alignItems: 'center',
   },
-  formTitle: {
-    color: '#F8FAFC',
+  emptyHistoryText: {
+    fontSize: 12,
+    color: '#94A3B8',
+  },
+  historyList: {
+    gap: 8,
+  },
+  historyItem: {
+    backgroundColor: '#08090C',
+    borderRadius: 12,
+    padding: 12,
+    gap: 6,
+  },
+  historyItemTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  historyItemTitle: {
     fontSize: 13,
     fontWeight: '800',
-    marginBottom: 10,
-  },
-  formRow3: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 10,
-  },
-  formCol: {
+    color: '#FFFFFF',
     flex: 1,
   },
-  inputLabel: {
-    color: '#94A3B8',
-    fontSize: 10,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  input: {
-    backgroundColor: '#08090C',
-    borderWidth: 1,
-    borderColor: '#252838',
-    borderRadius: 8,
-    color: '#F8FAFC',
+  historyItemMetrics: {
     fontSize: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    marginBottom: 8,
-  },
-  saveNoteBtn: {
-    backgroundColor: '#C8FF00',
-    paddingVertical: 11,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  saveNoteBtnText: {
-    color: '#08090C',
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  emptyCard: {
-    backgroundColor: '#111218',
-    borderRadius: 16,
-    padding: 20,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#252838',
-  },
-  emptyCardText: {
-    color: '#64748B',
-    fontSize: 12,
-    lineHeight: 18,
-    textAlign: 'center',
-  },
-  noteCard: {
-    backgroundColor: '#111218',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#252838',
-    padding: 14,
-    marginBottom: 12,
-  },
-  noteTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  noteDatePill: {
-    backgroundColor: '#252838',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  noteDateText: {
+    fontWeight: '800',
     color: '#C8FF00',
-    fontSize: 10,
-    fontWeight: '800',
   },
-  noteMetrics: {
-    color: '#94A3B8',
+  historyNotesText: {
     fontSize: 11,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
-  },
-  sessionTitle: {
-    color: '#F8FAFC',
-    fontSize: 14,
-    fontWeight: '800',
-    marginBottom: 6,
-  },
-  rpeBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 8,
-  },
-  rpeBadgeLabel: {
-    color: '#64748B',
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  rpeBadgeVal: {
-    color: '#C8FF00',
-    fontSize: 11,
-    fontWeight: '900',
-  },
-  noteGridRow: {
-    backgroundColor: '#08090C',
-    borderRadius: 8,
-    padding: 8,
-    marginBottom: 8,
-  },
-  noteBodyText: {
-    color: '#94A3B8',
-    fontSize: 12,
+    color: '#CBD5E1',
     lineHeight: 16,
   },
-  splitsMiniRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 4,
-  },
-  splitMiniItem: {
-    backgroundColor: '#08090C',
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#252838',
-    alignItems: 'center',
-  },
-  splitMiniKm: {
-    color: '#64748B',
-    fontSize: 9,
-    fontWeight: '700',
-  },
-  splitMiniPace: {
-    color: '#F8FAFC',
-    fontSize: 10,
-    fontWeight: '800',
-  },
+  // Modal styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(7, 9, 13, 0.94)',
-    justifyContent: 'center',
-    padding: 16,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    justifyContent: 'flex-end',
   },
   modalContent: {
     backgroundColor: '#111218',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#252838',
-    padding: 18,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
     maxHeight: '85%',
   },
   modalHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    justifyContent: 'space-between',
+    marginBottom: 16,
   },
   modalTitle: {
-    color: '#F8FAFC',
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '900',
+    color: '#FFFFFF',
+    textTransform: 'uppercase',
   },
   modalCloseBtn: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#94A3B8',
     padding: 4,
   },
-  modalCloseText: {
-    color: '#64748B',
-    fontSize: 18,
-    fontWeight: '800',
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#94A3B8',
+    marginBottom: 6,
+    marginTop: 10,
   },
-  cpWeekTabsRow: {
+  modalInput: {
+    backgroundColor: '#08090C',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 13,
+    color: '#FFFFFF',
+  },
+  twoColRow: {
+    flexDirection: 'row',
+  },
+  btnSaveNote: {
+    backgroundColor: '#C8FF00',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 20,
+    marginBottom: 20,
+  },
+  btnSaveNoteText: {
+    color: '#08090C',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  cpTabsRow: {
     flexDirection: 'row',
     gap: 8,
-    marginBottom: 14,
+    marginBottom: 12,
   },
-  cpWeekTab: {
+  cpTabBtn: {
     flex: 1,
-    backgroundColor: '#08090C',
-    borderWidth: 1,
-    borderColor: '#252838',
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  cpWeekTabActive: {
-    backgroundColor: '#C8FF00',
-    borderColor: '#C8FF00',
-  },
-  cpWeekTabText: {
-    color: '#94A3B8',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  textDark: {
-    color: '#08090C',
-  },
-  cpFormBox: {
-    marginBottom: 12,
-  },
-  formLabel: {
-    color: '#94A3B8',
-    fontSize: 11,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  formInput: {
-    backgroundColor: '#08090C',
-    borderWidth: 1,
-    borderColor: '#252838',
-    borderRadius: 10,
-    color: '#F8FAFC',
-    fontSize: 14,
-    fontWeight: '700',
-    paddingHorizontal: 12,
     paddingVertical: 8,
-    marginBottom: 6,
-  },
-  formHint: {
-    color: '#64748B',
-    fontSize: 10,
-    lineHeight: 14,
-    marginBottom: 8,
-  },
-  evalBtn: {
-    backgroundColor: '#C8FF00',
-    paddingVertical: 12,
     borderRadius: 10,
+    backgroundColor: '#181A24',
     alignItems: 'center',
-    marginBottom: 12,
   },
-  evalBtnText: {
-    color: '#08090C',
+  cpTabBtnActive: {
+    backgroundColor: '#C8FF00',
+  },
+  cpTabText: {
     fontSize: 12,
+    fontWeight: '700',
+    color: '#94A3B8',
+  },
+  cpTabTextActive: {
+    color: '#08090C',
     fontWeight: '900',
   },
-  resultBox: {
+  btnEvalCheckpoint: {
+    backgroundColor: '#4B2EFF',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  btnEvalCheckpointText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  cpResultBox: {
+    marginTop: 16,
     backgroundColor: '#08090C',
     borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(200,255,0,0.33)',
-    marginBottom: 14,
-  },
-  resultTitle: {
-    color: '#C8FF00',
-    fontSize: 11,
-    fontWeight: '900',
-    marginBottom: 4,
-  },
-  resultText: {
-    color: '#F8FAFC',
-    fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 18,
-    marginBottom: 4,
-  },
-  resultReason: {
-    color: '#94A3B8',
-    fontSize: 11,
-    lineHeight: 15,
-    marginBottom: 12,
-  },
-  decisionActionsRow: {
+    padding: 14,
     gap: 8,
   },
-  acceptBtn: {
+  cpResultTitle: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#C8FF00',
+  },
+  cpResultMessage: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    lineHeight: 18,
+  },
+  cpResultReason: {
+    fontSize: 11,
+    color: '#94A3B8',
+  },
+  cpActionRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  cpBtnApply: {
+    flex: 1,
     backgroundColor: '#C8FF00',
-    paddingVertical: 12,
-    borderRadius: 10,
+    borderRadius: 8,
+    paddingVertical: 8,
     alignItems: 'center',
   },
-  acceptBtnText: {
+  cpBtnApplyText: {
     color: '#08090C',
     fontSize: 11,
     fontWeight: '900',
   },
-  keepBtn: {
-    backgroundColor: '#252838',
-    paddingVertical: 10,
-    borderRadius: 10,
+  cpBtnKeep: {
+    flex: 1,
+    backgroundColor: '#181A24',
+    borderRadius: 8,
+    paddingVertical: 8,
     alignItems: 'center',
   },
-  keepBtnText: {
-    color: '#F8FAFC',
+  cpBtnKeepText: {
+    color: '#CBD5E1',
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '700',
   },
 });
