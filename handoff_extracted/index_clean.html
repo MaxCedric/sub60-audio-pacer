@@ -1,0 +1,1310 @@
+<!DOCTYPE html>
+<html lang="vi" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Sub60 Audio Pacer — Clean Contest</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Space Grotesk"', 'system-ui', 'sans-serif'],
+            display: ['"Barlow Condensed"', 'system-ui', 'sans-serif']
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { background-color: #08090C; color: #F8FAFC; font-family: 'Space Grotesk', system-ui, sans-serif; margin: 0; padding: 0; overflow-x: hidden; font-size: 15px; }
+    .font-display { font-family: 'Barlow Condensed', system-ui, sans-serif; letter-spacing: 0.02em; }
+    .tabular-nums { font-variant-numeric: tabular-nums; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    /* Golden Ratio (φ = 1.618) Grid & Typographic Hierarchy (13 - 21 - 34 - 55 - 89) */
+    .phi-grid { display: grid; grid-template-columns: 1.618fr 1fr; gap: 13px; }
+    .phi-text-xl { font-size: clamp(3.1rem, 13vw, 5.2rem); line-height: 0.88; }
+    .phi-text-lg { font-size: clamp(2.2rem, 9.5vw, 3.4rem); line-height: 0.92; }
+    .phi-text-md { font-size: 2.1rem; line-height: 1.0; }  /* ~34px L3 Tertiary */
+    .phi-text-sm { font-size: 1.3rem; line-height: 1.15; } /* ~21px L4 Title */
+    .contest-cut { clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px)); }
+    .contest-cut-sm { clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px)); }
+    .dotted-ring { border: 1.5px dashed rgba(200, 255, 0, 0.65); }
+    .dotted-ring-purple { border: 1.5px dashed rgba(157, 133, 255, 0.7); }
+    .writing-vertical { writing-mode: vertical-rl; transform: rotate(180deg); }
+    .checker-mini {
+      background-image: conic-gradient(#08090C 90deg, #C8FF00 90deg 180deg, #08090C 180deg 270deg, #C8FF00 270deg);
+      background-size: 8px 8px;
+    }
+    .checker-bw {
+      background-image: conic-gradient(#08090C 90deg, #F8FAFC 90deg 180deg, #08090C 180deg 270deg, #F8FAFC 270deg);
+      background-size: 8px 8px;
+    }
+    @keyframes ken-burns {
+      0%, 100% { transform: scale(1) translate3d(0, 0, 0); }
+      50% { transform: scale(1.13) translate3d(-2%, -1%, 0); }
+    }
+    @keyframes v-marquee {
+      0% { transform: translateY(0%); }
+      100% { transform: translateY(-50%); }
+    }
+    @keyframes chev-pulse {
+      0%, 100% { opacity: 0.28; transform: translateX(0); }
+      50% { opacity: 1; transform: translateX(2px); }
+    }
+    @keyframes starting-in {
+      0% { opacity: 0; transform: translateX(-18px) skewX(-8deg); }
+      65% { opacity: 1; transform: translateX(3px) skewX(2deg); }
+      100% { opacity: 1; transform: translateX(0) skewX(0deg); }
+    }
+    @keyframes run-bounce {
+      0%, 100% { transform: translateY(0) scale(1); }
+      50% { transform: translateY(-3px) scale(1.03); }
+    }
+    @keyframes run-sweep {
+      0% { transform: translateX(-130%) skewX(-22deg); }
+      45%, 100% { transform: translateX(220%) skewX(-22deg); }
+    }
+    .poster-kenburns { animation: ken-burns 12s ease-in-out infinite; }
+    .v-marquee-track { animation: v-marquee 7s linear infinite; }
+    .chev-1 { animation: chev-pulse 1.3s ease-in-out 0s infinite; }
+    .chev-2 { animation: chev-pulse 1.3s ease-in-out 0.22s infinite; }
+    .chev-3 { animation: chev-pulse 1.3s ease-in-out 0.44s infinite; }
+    .starting-intro { animation: starting-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+    .run-next-btn { position: relative; overflow: hidden; animation: run-bounce 2.1s ease-in-out infinite; }
+    .run-next-btn::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      width: 45%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.65), transparent);
+      animation: run-sweep 2.8s ease-in-out infinite;
+      pointer-events: none;
+    }
+    .grunge-noise {
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+      background-repeat: repeat;
+      background-size: 160px 160px;
+      mix-blend-mode: overlay;
+    }
+    .halftone-corner {
+      background-image: radial-gradient(rgba(75, 46, 255, 0.14) 1.5px, transparent 1.5px);
+      background-size: 8px 8px;
+      mask-image: linear-gradient(135deg, transparent 45%, rgba(0,0,0,0.85) 100%);
+      -webkit-mask-image: linear-gradient(135deg, transparent 45%, rgba(0,0,0,0.85) 100%);
+    }
+    .bg-square-grid {
+      background-color: #08090C;
+      background-image:
+        linear-gradient(to right, rgba(75, 46, 255, 0.12) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(75, 46, 255, 0.12) 1px, transparent 1px),
+        linear-gradient(to right, rgba(200, 255, 0, 0.05) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(200, 255, 0, 0.05) 1px, transparent 1px);
+      background-size: 96px 96px, 96px 96px, 24px 24px, 24px 24px;
+    }
+    .{
+      background-image: radial-gradient(rgba(200, 255, 0, 0.14) 1px, transparent 1px);
+      background-size: 14px 14px;
+    }
+    .{
+      background-image: repeating-linear-gradient(
+        -45deg,
+        rgba(8, 9, 12, 0.08),
+        rgba(8, 9, 12, 0.08) 6px,
+        transparent 6px,
+        transparent 14px
+      );
+    }
+    .{
+      background-image: repeating-linear-gradient(
+        -45deg,
+        rgba(75, 46, 255, 0.10),
+        rgba(75, 46, 255, 0.10) 6px,
+        transparent 6px,
+        transparent 14px
+      );
+    }
+    .contest-hazard {
+      background-image: repeating-linear-gradient(-45deg, #C8FF00, #C8FF00 6px, #08090C 6px, #08090C 12px);
+    }
+    @keyframes eq-bar { 0%, 100% { transform: scaleY(0.35); } 50% { transform: scaleY(1); } }
+    .eq-active .eq-b1 { animation: eq-bar 0.55s ease-in-out infinite; }
+    .eq-active .eq-b2 { animation: eq-bar 0.45s ease-in-out 0.15s infinite; }
+    .eq-active .eq-b3 { animation: eq-bar 0.6s ease-in-out 0.25s infinite; }
+    .metro-flash { color: #C8FF00 !important; text-shadow: 0 0 14px rgba(200,255,0,0.65); }
+    input[type="range"] { accent-color: #C8FF00; }
+    @keyframes candy-pop {
+      0% { opacity: 0; transform: scale(0.35) rotate(-6deg); }
+      55% { opacity: 1; transform: scale(1.12) rotate(2deg); }
+      75% { transform: scale(0.95) rotate(-1deg); }
+      100% { opacity: 1; transform: scale(1) rotate(0deg); }
+    }
+    @keyframes candy-out {
+      0% { opacity: 1; transform: scale(1) translateY(0); }
+      100% { opacity: 0; transform: scale(0.75) translateY(-18px); }
+    }
+    @keyframes spark-fly {
+      0% { opacity: 1; transform: translate(0, 0) scale(1) rotate(0deg); }
+      100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(0.2) rotate(180deg); }
+    }
+    .candy-enter { animation: candy-pop 0.48s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+    .candy-exit { animation: candy-out 0.32s ease-in forwards; }
+    .spark-dot {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      animation: spark-fly 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-square-grid text-[#F8FAFC] flex flex-col">
+  <!-- Global Tactile Noise / Grain Grunge Overlay -->
+  <div class="pointer-events-none fixed inset-0 z-40 grunge-noise opacity-25"></div>
+
+  <!-- Contest Broadcast Top Header -->
+  <header class="sticky top-0 z-30 bg-[#08090C]/95 backdrop-blur border-b-2 border-[#4B2EFF]">
+    <div class="bg-[#4B2EFF] text-white text-[11px] font-display font-black uppercase tracking-[0.18em] pl-14 pr-3 sm:px-3 py-1 flex items-center justify-between gap-2">
+      <span class="flex items-center gap-2">
+        <span class="w-4 h-4 checker-mini inline-block shrink-0"></span>
+        <span>SUB60 WRISTBAND // 10.77°N 106.70°E</span>
+      </span>
+      <span class="flex items-center gap-1.5 shrink-0">
+        <span class="bg-[#C8FF00] text-[#08090C] px-2 py-0.2 font-black tracking-widest">BIB #0060</span>
+        <span class="w-4 h-4 checker-bw inline-block"></span>
+      </span>
+    </div>
+    <div class="max-w-2xl mx-auto pl-14 pr-4 sm:px-4 py-2.5 flex items-center justify-between gap-3">
+      <div class="flex items-center gap-3 min-w-0">
+        <img src="data:image/jpeg;[BASE64]" alt="Sub60 Crest" class="w-9 h-9 rounded-lg object-cover shrink-0" />
+        <div class="min-w-0">
+          <h1 class="font-display text-2xl font-black uppercase text-white leading-none truncate">Sub60 Pacer</h1>
+          <div class="text-xs text-[#9D85FF] font-semibold mt-0.5">10 KM · 16.01.2027</div>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 shrink-0">
+        <button id="btnOpenCheckpoint" type="button" title="Checkpoint" class="w-9 h-9 rounded-full bg-[#14151D] text-[#C8FF00] hover:bg-[#1E202B] transition flex items-center justify-center">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/><path d="M4 22h16"/></svg>
+        </button>
+        <button id="btnAudioQuick" type="button" title="Audio Coach" class="px-3 h-9 rounded-full bg-[#14151D] text-white flex items-center gap-1.5">
+          <svg class="w-4 h-4 text-[#C8FF00]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
+          <span id="audioDot" class="w-2 h-2 rounded-full bg-[#C8FF00]"></span>
+          <span id="audioQuickLabel" class="hidden">ON</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="flex-1 max-w-2xl w-full mx-auto px-4 pt-5 pb-24">
+
+    <!-- ==================== TAB 1: GIÁO ÁN (CLEAN) ==================== -->
+    <section id="tab-plan" class="space-y-6">
+
+      <!-- Esports Tournament Poster Bento (Golden Ratio 1.618 : 1) -->
+      <div class="phi-grid">
+        <!-- Left Poster Card (61.8% width, 3D Tilt + Ken Burns + Marquee + Chevrons) -->
+        <div id="posterCard" class="relative overflow-hidden contest-cut bg-[#111218] border border-[#4B2EFF]/60 flex min-h-[196px] transition-transform duration-150 will-change-transform">
+          <!-- Vertical Acid Lime Ribbon (Infinite Marquee) -->
+          <div class="w-8 bg-[#C8FF00] text-[#08090C] overflow-hidden flex flex-col items-center shrink-0 z-10 py-1">
+            <div class="v-marquee-track flex flex-col items-center gap-4">
+              <span class="writing-vertical font-display font-black text-sm uppercase tracking-[0.2em]">CHALLENGE</span>
+              <span class="writing-vertical font-display font-black text-sm uppercase tracking-[0.2em]">CHALLENGE</span>
+            </div>
+          </div>
+          <!-- Vertical Electric Purple Ribbon -->
+          <div class="w-5 bg-[#4B2EFF] text-white flex items-center justify-center shrink-0 z-10">
+            <span class="writing-vertical font-display font-bold text-[10px] uppercase tracking-[0.25em]">VER 1.0 // 10K</span>
+          </div>
+          <!-- Main Poster Visual -->
+          <div class="relative flex-1 p-3.5 flex flex-col justify-between overflow-hidden">
+            <img src="data:image/jpeg;[BASE64]" alt="Sub60 Track" class="poster-kenburns absolute inset-0 w-full h-full object-cover opacity-45" />
+            <div class="absolute inset-0 bg-gradient-to-t from-[#08090C] via-[#08090C]/60 to-transparent"></div><div class="pointer-events-none absolute inset-0 grunge-noise opacity-40"></div>
+            <div class="relative z-10 flex items-center justify-between">
+              <span id="headerGoalBadge" class="px-2 py-0.5 bg-[#4B2EFF] text-white font-display font-black text-xs uppercase tracking-wider">SUB 60</span>
+              <svg class="w-9 h-3.5 text-[#C8FF00]" viewBox="0 0 42 14" fill="currentColor">
+                <polygon class="chev-1" points="0,0 7,0 13,7 7,14 0,14 6,7"/>
+                <polygon class="chev-2" points="14,0 21,0 27,7 21,14 14,14 20,7"/>
+                <polygon class="chev-3" points="28,0 35,0 41,7 35,14 28,14 34,7"/>
+              </svg>
+            </div>
+            <div id="posterTitleLayer" class="relative z-10 my-1 transition-transform duration-150">
+              <h2 class="starting-intro font-display text-4xl sm:text-5xl font-black uppercase text-[#C8FF00] leading-[0.88] tracking-tight">STARTING</h2>
+              <div class="mt-1.5 flex items-baseline gap-2">
+                <span class="font-display text-2xl font-black text-white italic">10 KM</span>
+                <span id="heroTargetPaceText" class="font-display text-xl font-black text-[#9D85FF] tabular-nums">5'58"/km</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Solid Lime Accent Card (38.2% width) -->
+        <div class="contest-cut bg-[#C8FF00] text-[#08090C] p-3.5 flex flex-col items-center justify-between min-h-[196px] shadow-[0_0_30px_rgba(200,255,0,0.2)]">
+          <div class="w-full flex items-center justify-between">
+            <span class="font-display text-sm font-black uppercase tracking-wider">FINALS</span>
+            <span class="px-1.5 py-0.5 bg-[#08090C] text-[#C8FF00] font-display text-[10px] font-black">LIVE</span>
+          </div>
+          <div class="w-24 h-24 rounded-full border-2 border-dashed border-[#08090C] flex flex-col items-center justify-center my-0.5">
+            <span id="heroDaysLeft" class="font-display text-4xl font-black leading-none tabular-nums">59</span>
+            <span class="font-display text-xs font-black uppercase tracking-widest">DAYS</span>
+          </div>
+          <div class="w-full text-center py-1 contest-cut-sm bg-[#4B2EFF] text-white font-display text-xs font-black tracking-widest">
+            16.01.2027
+          </div>
+        </div>
+      </div>
+
+      <!-- Segmented Goal Selector (Clean Pill Bar) -->
+      <div id="goalTierGrid" class="grid grid-cols-3 gap-2 bg-[#111218] p-1.5 rounded-xl"></div>
+
+      <!-- Week Selector & Focus -->
+      <div class="space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-bold text-white flex items-center gap-2"><svg class="w-4 h-4 text-[#C8FF00]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Lịch tập 9 tuần</span>
+          <span id="weekTotalKm" class="font-display text-lg font-black text-[#C8FF00] tabular-nums"></span>
+        </div>
+        <div id="weekPills" class="flex gap-2 overflow-x-auto no-scrollbar pb-1"></div>
+        <div class="text-xs font-semibold text-[#9D85FF]" id="weekDateRange"></div>
+        <p class="hidden" id="weekFocusDesc"></p>
+      </div>
+
+      <!-- Techwear Spec Bar Divider (Crisp Vector SVG Slant Bars & Chevrons) -->
+      <div class="flex items-center justify-between gap-2 bg-[#111218] border border-[#252838] px-3 py-2 rounded-lg">
+        <div class="flex items-center gap-2.5">
+          <svg class="w-11 h-3 text-[#C8FF00] shrink-0" viewBox="0 0 54 12" fill="currentColor">
+            <polygon points="0,0 6,0 10,12 4,12"/>
+            <polygon points="10,0 16,0 20,12 14,12"/>
+            <polygon points="20,0 26,0 30,12 24,12"/>
+            <polygon points="30,0 36,0 40,12 34,12"/>
+            <polygon points="40,0 46,0 50,12 44,12"/>
+          </svg>
+          <span class="font-display font-black text-xs uppercase tracking-[0.2em] text-white">WORKOUT STAGES</span>
+        </div>
+        <svg class="w-14 h-3 text-[#9D85FF] shrink-0" viewBox="0 0 70 12" fill="currentColor">
+          <polygon points="0,0 6,0 11,6 6,12 0,12 5,6"/>
+          <polygon points="11,0 17,0 22,6 17,12 11,12 16,6"/>
+          <polygon points="22,0 28,0 33,6 28,12 22,12 27,6"/>
+          <polygon points="33,0 39,0 44,6 39,12 33,12 38,6"/>
+          <polygon points="44,0 50,0 55,6 50,12 44,12 49,6"/>
+          <polygon points="55,0 61,0 66,6 61,12 55,12 60,6"/>
+        </svg>
+      </div>
+
+      <!-- Clean Workout Cards -->
+      <div id="workoutsList" class="space-y-3.5"></div>
+
+      <!-- Optional Adaptive Quick Bar -->
+      <div class="bg-[#111218] rounded-2xl p-4">
+        <button id="btnToggleAdaptive" type="button" class="w-full flex items-center justify-between text-left">
+          <div class="flex items-center gap-2.5">
+            <svg class="w-5 h-5 text-[#C8FF00]" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            <span class="text-sm font-bold text-white">Tùy chỉnh theo thể trạng</span>
+          </div>
+          <svg id="iconAdaptiveChev" class="w-4 h-4 text-[#94A3B8] transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div id="adaptiveDrawer" class="hidden pt-4 space-y-3">
+          <div id="feelingPills" class="flex flex-wrap gap-2"></div>
+          <div id="adaptiveCard" class="bg-[#08090C] rounded-xl p-3.5"></div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ==================== TAB 2: RUN HUD (STREAMLINED 5-BAND COCKPIT) ==================== -->
+    <section id="tab-hud" class="hidden space-y-4">
+
+      <!-- Band 1: Workout Title & Mode -->
+      <div class="flex items-center justify-between gap-2">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2">
+            <span id="hudStatusDot" class="w-2 h-2 rounded-full bg-[#94A3B8]"></span>
+            <span id="hudStatusLabel" class="text-[11px] font-bold uppercase tracking-widest text-[#94A3B8]">SẴN SÀNG</span>
+          </div>
+          <h2 id="hudWorkoutTitle" class="font-display text-2xl font-black uppercase text-white truncate">--</h2>
+        </div>
+
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button id="btnConnectBle" type="button" class="px-2.5 py-1.5 rounded-lg bg-[#14151D] text-xs font-bold text-[#9D85FF] hover:text-white flex items-center gap-1">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5"/></svg>
+            <span id="bleBtnText">BLE</span>
+          </button>
+          <button id="btnToggleSimDrawer" type="button" class="px-2.5 py-1.5 rounded-lg bg-[#4B2EFF]/25 text-xs font-bold text-[#9D85FF]">SIM ▾</button>
+        </div>
+      </div>
+
+      <!-- Walking Recovery Banner -->
+      <div id="recoveryBanner" class="hidden bg-[#FFB020]/15 rounded-xl p-3 flex items-center justify-between gap-2">
+        <span class="text-xs font-bold text-[#FFB020]">ĐI BỘ HỒI PHỤC BẢO VỆ CHÂN</span>
+        <button id="btnEndRecovery" type="button" class="px-3 py-1.5 rounded-lg bg-[#C8FF00] text-[#08090C] text-xs font-extrabold">TIẾP TỤC</button>
+      </div>
+
+      <!-- Band 2: Unified Segment Bar -->
+      <div class="bg-[#111218] rounded-2xl p-3 space-y-2">
+        <div class="flex items-center justify-between gap-2 text-xs">
+          <div class="flex items-center gap-2 min-w-0">
+            <span id="hudSegmentTag" class="px-1.5 py-0.5 bg-[#4B2EFF] text-white font-display font-black text-[11px] shrink-0">1/1</span>
+            <span id="hudSegmentName" class="font-bold text-white truncate">--</span>
+          </div>
+          <span class="flex items-center gap-1.5 shrink-0"><span id="hudSegmentTarget" class="font-bold text-[#C8FF00] tabular-nums">--</span><span class="w-3.5 h-3.5 checker-mini inline-block"></span></span>
+        </div>
+        <div class="w-full h-1.5 bg-[#1E202B] rounded-full overflow-hidden">
+          <div id="hudPillFill" class="h-full bg-[#C8FF00] transition-all duration-300" style="width: 0%"></div>
+        </div>
+        <div class="flex items-center justify-between text-[11px] text-[#94A3B8] tabular-nums">
+          <span><span id="hudPctText" class="text-white font-bold">0%</span> · <span id="hudSegRemain">--</span></span>
+          <span class="truncate ml-2">Next: <span id="hudNextSegName" class="text-[#CBD5E1] font-semibold">--</span></span>
+        </div>
+      </div>
+
+      <!-- Band 3: Hero Scoreboard (Light Cards with Lime/Purple Bottom Accent like Reference) -->
+      <div class="phi-grid">
+        <div class="relative overflow-hidden bg-[#F8FAFC] text-[#08090C] contest-cut border-b-4 border-b-[#C8FF00] p-4 flex flex-col justify-between shadow-[0_10px_25px_rgba(0,0,0,0.45)]"><div class="pointer-events-none absolute inset-0 halftone-corner"></div>
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-black tracking-widest text-[#475569]">PACE</span>
+            <span id="hudPaceStatus" class="px-2 py-0.5 rounded-full bg-[#C8FF00] text-[#08090C] text-[11px] font-extrabold">ĐÚNG NHỊP</span>
+          </div>
+          <div class="mt-3">
+            <div id="hudPaceValue" class="font-display italic phi-text-xl font-black text-[#08090C] tabular-nums tracking-tight">--'--</div>
+            <div class="text-[11px] font-extrabold text-[#4B2EFF] mt-1">MIN / KM</div>
+          </div>
+        </div>
+
+        <div id="hudHrCard" class="relative overflow-hidden bg-[#F8FAFC] text-[#08090C] contest-cut border-b-4 border-b-[#4B2EFF] p-4 flex flex-col justify-between transition-colors shadow-[0_10px_25px_rgba(0,0,0,0.45)]"><div class="pointer-events-none absolute inset-0 halftone-corner"></div>
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-black tracking-widest text-[#475569]">BPM</span>
+            <span id="hudZoneBadge" class="px-2 py-0.5 rounded-full bg-[#4B2EFF] text-white text-[11px] font-extrabold">Z2</span>
+          </div>
+          <div class="mt-3">
+            <div id="hudHrValue" class="font-display italic phi-text-lg font-black text-[#08090C] tabular-nums tracking-tight">142</div>
+            <div class="text-[11px] font-extrabold text-[#475569] mt-1">HEART</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Band 4: Unified Telemetry Strip (Light Surface for Outdoor Contrast) -->
+      <div class="bg-[#F8FAFC] text-[#08090C] rounded-2xl divide-y divide-slate-200 shadow-[0_10px_25px_rgba(0,0,0,0.4)]">
+        <div class="grid grid-cols-3 py-3 text-center">
+          <div>
+            <div class="font-display phi-text-md font-black text-[#08090C] tabular-nums"><span id="hudTotalDist">0.00</span></div>
+            <div class="text-[10px] font-extrabold tracking-widest text-[#475569]">KM</div>
+          </div>
+          <div class="border-x border-slate-200">
+            <div id="hudElapsedTime" class="font-display phi-text-md font-black text-[#08090C] tabular-nums">00:00</div>
+            <div class="text-[10px] font-extrabold tracking-widest text-[#475569]">TIME</div>
+          </div>
+          <div>
+            <div id="cadenceValWrap" class="font-display phi-text-md font-black text-[#4B2EFF] tabular-nums transition-colors"><span id="hudCadence">172</span></div>
+            <div class="text-[10px] font-extrabold tracking-widest text-[#475569]">SPM</div>
+          </div>
+        </div>
+        <div class="px-3.5 py-2 flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2 min-w-0">
+            <div id="coachEq" class="flex items-end gap-0.5 h-3 shrink-0">
+              <span class="eq-b1 w-1 h-3 bg-[#C8FF00] rounded-full origin-bottom"></span>
+              <span class="eq-b2 w-1 h-3 bg-[#4B2EFF] rounded-full origin-bottom"></span>
+              <span class="eq-b3 w-1 h-3 bg-[#C8FF00] rounded-full origin-bottom"></span>
+            </div>
+            <span id="hudLastCoachMsg" class="text-xs font-semibold text-[#334155] truncate">Audio Coach Ready</span>
+          </div>
+          <div class="flex items-center gap-1.5 shrink-0">
+            <button id="btnTestCoach" type="button" class="px-2.5 py-0.5 rounded bg-[#08090C] text-[11px] font-bold text-[#C8FF00]">Thử</button>
+            <button id="btnToggleMetronome" type="button" class="px-2.5 py-0.5 rounded bg-[#E2E8F0] text-[11px] font-bold text-[#08090C]">172 SPM</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Watch-Style Circular Run Controls -->
+      <div class="flex items-center justify-around gap-2 py-1">
+        <button id="btnNextSeg" type="button" class="flex flex-col items-center gap-1.5 group">
+          <span class="w-[42px] h-[42px] rounded-full bg-[#14151D] border border-[#4B2EFF]/60 flex items-center justify-center text-[#9D85FF] group-hover:bg-[#4B2EFF]/20 transition">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+          </span>
+          <span class="text-[10px] font-bold text-[#94A3B8]">Skip</span>
+        </button>
+
+        <button id="btnStartPause" type="button" class="flex flex-col items-center gap-1.5 group">
+          <span class="w-[68px] h-[68px] rounded-full bg-[#C8FF00] text-[#08090C] flex items-center justify-center shadow-[0_0_24px_rgba(200,255,0,0.3)] group-hover:scale-105 transition">
+            <svg class="w-7 h-7" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+          </span>
+          <span id="startPauseText" class="text-[11px] font-extrabold text-[#C8FF00]">START</span>
+        </button>
+
+        <button id="btnPainReport" type="button" class="flex flex-col items-center gap-1.5 group">
+          <span class="w-[42px] h-[42px] rounded-full bg-[#14151D] border border-[#FFB020]/50 flex items-center justify-center text-[#FFB020] group-hover:bg-[#FFB020]/15 transition">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </span>
+          <span class="text-[10px] font-bold text-[#FFB020]">SOS</span>
+        </button>
+
+        <button id="btnStopHold" type="button" class="flex flex-col items-center gap-1.5 select-none group">
+          <span class="relative overflow-hidden w-[42px] h-[42px] rounded-full bg-[#FF3B5C]/15 border border-[#FF3B5C]/60 flex items-center justify-center text-[#FF3B5C]">
+            <span id="stopHoldFill" class="absolute inset-y-0 left-0 bg-[#FF3B5C]/40 transition-none" style="width: 0%"></span>
+            <svg class="relative z-10 w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+          </span>
+          <span class="text-[10px] font-bold text-[#FF3B5C]">Hold Stop</span>
+        </button>
+      </div>
+
+      <!-- Collapsible SIM / GPS Drawer -->
+      <div id="simControlsCard" class="hidden bg-[#111218] rounded-2xl p-4 space-y-3">
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex bg-[#08090C] p-0.5 rounded-lg">
+            <button id="btnModeSim" type="button" class="px-2.5 py-1 rounded-md text-xs font-bold bg-[#C8FF00] text-[#08090C]">SIM</button>
+            <button id="btnModeGps" type="button" class="px-2.5 py-1 rounded-md text-xs font-bold text-[#94A3B8]">GPS</button>
+          </div>
+          <div class="flex gap-1">
+            <button type="button" data-speed="1" class="sim-speed px-2 py-0.5 rounded bg-[#C8FF00] text-[#08090C] text-xs font-bold">1x</button>
+            <button type="button" data-speed="5" class="sim-speed px-2 py-0.5 rounded bg-[#181A24] text-[#CBD5E1] text-xs font-bold">5x</button>
+            <button type="button" data-speed="15" class="sim-speed px-2 py-0.5 rounded bg-[#181A24] text-[#CBD5E1] text-xs font-bold">15x</button>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <div class="flex justify-between text-xs mb-1"><span class="text-[#94A3B8]">Pace</span><span id="simPaceDisplay" class="font-bold tabular-nums">6'00"/km</span></div>
+            <input id="simPaceSlider" type="range" min="270" max="600" value="360" class="w-full" />
+          </div>
+          <div>
+            <div class="flex justify-between text-xs mb-1"><span class="text-[#94A3B8]">Nhịp tim</span><span id="simHrDisplay" class="font-bold tabular-nums">142 bpm</span></div>
+            <input id="simHrSlider" type="range" min="105" max="190" value="142" class="w-full" />
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-1.5">
+          <button type="button" data-preset="target" class="sim-preset px-2.5 py-1 rounded-lg bg-[#181A24] text-xs font-bold text-[#C8FF00]">Đúng nhịp</button>
+          <button type="button" data-preset="fast" class="sim-preset px-2.5 py-1 rounded-lg bg-[#181A24] text-xs font-bold text-[#9D85FF]">Vọt tốc</button>
+          <button type="button" data-preset="slow" class="sim-preset px-2.5 py-1 rounded-lg bg-[#181A24] text-xs font-bold text-[#FFB020]">Chậm</button>
+          <button type="button" data-preset="danger" class="sim-preset px-2.5 py-1 rounded-lg bg-[#181A24] text-xs font-bold text-[#FF3B5C]">Tim 183</button>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ==================== TAB 3: CHỈ SỐ & AI (CLEAN) ==================== -->
+    <section id="tab-stats" class="hidden space-y-6">
+
+      <!-- AI PT Q&A -->
+      <div class="bg-[#111218] rounded-2xl p-4 space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-extrabold text-white flex items-center gap-2"><svg class="w-4 h-4 text-[#C8FF00]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Hỏi AI Huấn Luyện Viên</span>
+          <span id="aiProviderBadge" class="text-xs font-bold text-[#9D85FF]">OFFLINE AI PT</span>
+        </div>
+        <div class="flex flex-wrap gap-1.5">
+          <button type="button" class="quick-q px-2.5 py-1 rounded-lg bg-[#181A24] text-xs text-[#CBD5E1] hover:text-white">Mỏi bắp chuối?</button>
+          <button type="button" class="quick-q px-2.5 py-1 rounded-lg bg-[#181A24] text-xs text-[#CBD5E1] hover:text-white">Sau T3 cầu lông chạy gì?</button>
+          <button type="button" class="quick-q px-2.5 py-1 rounded-lg bg-[#181A24] text-xs text-[#CBD5E1] hover:text-white">Uống nước &amp; nhịp thở?</button>
+        </div>
+        <div class="flex gap-2">
+          <input id="aiQuestionInput" type="text" placeholder="Hỏi PT..." class="flex-1 bg-[#08090C] rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-[#64748B] focus:outline-none" />
+          <button id="btnAskAi" type="button" class="px-4 py-2.5 rounded-xl bg-[#C8FF00] text-[#08090C] text-sm font-extrabold shrink-0">Hỏi</button>
+        </div>
+        <div id="aiAnswerBox" class="hidden bg-[#08090C] rounded-xl p-3.5 text-sm text-[#E2E8F0] leading-relaxed"></div>
+      </div>
+
+      <!-- Athlete Profile -->
+      <div class="bg-[#111218] rounded-2xl p-4 space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-extrabold text-white flex items-center gap-2"><svg class="w-4 h-4 text-[#9D85FF]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Thông số Vận động viên</span>
+          <button id="btnSaveProfile" type="button" class="px-3 py-1.5 rounded-lg bg-[#C8FF00] text-[#08090C] text-xs font-extrabold">Lưu</button>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5" id="profileSteppers"></div>
+        <input id="geminiKeyInput" type="password" placeholder="Gemini API Key (tùy chọn)" class="w-full bg-[#08090C] rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-[#64748B] focus:outline-none" />
+      </div>
+
+      <!-- 5 HR Zones -->
+      <div class="bg-[#111218] rounded-2xl p-4 space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-extrabold text-white">5 Vùng Tim (LTHR <span id="lthrTitleVal" class="text-[#C8FF00]">176</span>)</span>
+          <span class="text-xs font-bold text-[#9D85FF]">VO2max ~<span id="vo2EstVal">43.2</span></span>
+        </div>
+        <div id="hrZonesTable" class="space-y-2"></div>
+      </div>
+
+      <!-- Weekly Volume Chart -->
+      <div class="bg-[#111218] rounded-2xl p-4 space-y-2">
+        <span class="text-sm font-extrabold text-white flex items-center gap-2"><svg class="w-4 h-4 text-[#C8FF00]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Khối lượng 9 tuần (km)</span>
+        <div class="relative h-52"><canvas id="volumeChart"></canvas></div>
+      </div>
+
+      <!-- Run History -->
+      <div class="bg-[#111218] rounded-2xl p-4 space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-extrabold text-white flex items-center gap-2"><svg class="w-4 h-4 text-[#9D85FF]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Nhật ký buổi chạy</span>
+          <button id="btnAddManualNote" type="button" class="text-xs font-bold text-[#C8FF00]">+ Ghi Note</button>
+        </div>
+        <div id="runHistoryList" class="space-y-2.5"></div>
+      </div>
+
+    </section>
+  </main>
+
+  <!-- Clean Bottom Navigation -->
+  <nav class="fixed bottom-0 inset-x-0 z-30 bg-[#08090C]/95 backdrop-blur border-t border-white/10">
+    <div class="max-w-2xl mx-auto px-4 py-2 grid grid-cols-3 gap-2">
+      <button type="button" data-tab="plan" class="nav-btn py-2 rounded-xl flex items-center justify-center gap-2 bg-[#C8FF00] text-[#08090C] font-display font-black uppercase text-sm">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <span>Giáo Án</span>
+      </button>
+      <button type="button" data-tab="hud" class="nav-btn py-2 rounded-xl flex items-center justify-center gap-2 text-[#94A3B8] font-display font-black uppercase text-sm hover:text-white">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        <span>Run HUD</span>
+      </button>
+      <button type="button" data-tab="stats" class="nav-btn py-2 rounded-xl flex items-center justify-center gap-2 text-[#94A3B8] font-display font-black uppercase text-sm hover:text-white">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        <span>Chỉ Số &amp; AI</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ==================== MODAL: CHECKPOINT ==================== -->
+  <div id="checkpointModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-[#111218] rounded-2xl max-w-md w-full p-5 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="font-display text-2xl font-black uppercase text-white">Đánh giá Checkpoint</h3>
+        <button id="btnCloseCheckpoint" type="button" class="w-8 h-8 rounded-lg bg-[#181A24] text-white font-bold">✕</button>
+      </div>
+      <div class="flex gap-2">
+        <button id="cpTabW4" type="button" class="flex-1 py-2 rounded-xl bg-[#C8FF00] text-[#08090C] text-xs font-extrabold">Tuần 4: Test 3 km</button>
+        <button id="cpTabW7" type="button" class="flex-1 py-2 rounded-xl bg-[#181A24] text-[#CBD5E1] text-xs font-bold">Tuần 7: Test 2 km</button>
+      </div>
+      <div class="space-y-3">
+        <div>
+          <label id="cpTimeLabel" class="block text-xs font-semibold text-[#CBD5E1] mb-1">Thành tích Test 3 km (mm:ss)</label>
+          <input id="cpTimeInput" type="text" value="18:25" class="w-full bg-[#08090C] rounded-xl px-3.5 py-2.5 text-base font-bold text-white tabular-nums" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-[#CBD5E1] mb-1">Nhịp tim trung bình (bpm)</label>
+          <input id="cpHrInput" type="number" value="172" class="w-full bg-[#08090C] rounded-xl px-3.5 py-2.5 text-base font-bold text-white tabular-nums" />
+        </div>
+      </div>
+      <button id="btnEvalCheckpoint" type="button" class="w-full py-3 rounded-xl bg-[#4B2EFF] text-white text-sm font-black">KIỂM TRA</button>
+      <div id="cpResultBox" class="hidden bg-[#08090C] rounded-xl p-3.5 space-y-2 text-sm"></div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: POST-RUN NOTE ==================== -->
+  <div id="postRunModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-[#111218] rounded-2xl max-w-md w-full p-5 space-y-3.5 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between">
+        <h3 id="postRunTitle" class="font-display text-2xl font-black uppercase text-white">Nhật ký buổi chạy</h3>
+        <button id="btnClosePostRun" type="button" class="w-8 h-8 rounded-lg bg-[#181A24] text-white font-bold">✕</button>
+      </div>
+      <div class="grid grid-cols-3 gap-2 bg-[#08090C] rounded-xl p-3 text-center">
+        <div><div class="text-xs text-[#94A3B8]">Cự ly</div><div id="prDist" class="text-base font-extrabold tabular-nums">0.00 km</div></div>
+        <div><div class="text-xs text-[#94A3B8]">Thời gian</div><div id="prTime" class="text-base font-extrabold tabular-nums">00:00</div></div>
+        <div><div class="text-xs text-[#94A3B8]">Pace TB</div><div id="prPace" class="text-base font-extrabold text-[#C8FF00] tabular-nums">--'--</div></div>
+      </div>
+      <div class="space-y-2.5">
+        <input id="noteGood" type="text" placeholder="1. Đã làm tốt (VD: Giữ pace đều)" class="w-full bg-[#08090C] rounded-xl px-3.5 py-2.5 text-sm text-white" />
+        <input id="noteBad" type="text" placeholder="2. Chưa được (VD: Km cuối hụt hơi)" class="w-full bg-[#08090C] rounded-xl px-3.5 py-2.5 text-sm text-white" />
+        <input id="noteFix" type="text" placeholder="3. Cách sửa buổi tới" class="w-full bg-[#08090C] rounded-xl px-3.5 py-2.5 text-sm text-white" />
+        <div>
+          <div class="flex justify-between text-xs font-bold text-[#CBD5E1] mb-1"><span>4. Độ gắng sức (RPE)</span><span id="rpeDisplay" class="text-[#C8FF00]">6 / 10</span></div>
+          <input id="noteRpe" type="range" min="1" max="10" value="6" class="w-full" />
+        </div>
+      </div>
+      <button id="btnSaveRunNote" type="button" class="w-full py-3 rounded-xl bg-[#C8FF00] text-[#08090C] text-sm font-black">LƯU NHẬT KÝ</button>
+    </div>
+  </div>
+
+  <!-- Candy-Crush Style PT Callout Popup Overlay -->
+  <div id="candyOverlay" class="hidden fixed inset-0 z-40 pointer-events-none flex items-center justify-center px-4">
+    <div id="candySparks" class="absolute inset-0 flex items-center justify-center overflow-hidden"></div>
+    <div id="candyCard" class="relative max-w-xs w-full text-center p-5 contest-cut border-2 shadow-[0_20px_60px_rgba(0,0,0,0.85)]">
+      <div id="candyRibbon" class="inline-block px-3 py-0.5 rounded-full text-[11px] font-display font-black uppercase tracking-[0.2em] mb-1.5">PT CALLOUT</div>
+      <div id="candyTitle" class="font-display italic text-5xl font-black uppercase leading-none tracking-tight drop-shadow-[0_4px_0_rgba(0,0,0,0.6)]">SWEET!</div>
+      <div id="candySub" class="text-sm font-bold mt-2 leading-snug">Đúng nhịp! Giữ đều chân</div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toastBox" class="hidden fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl bg-[#181A24] text-xs font-bold text-[#C8FF00] shadow-xl"></div>
+
+<script>
+(function() {
+  'use strict';
+  const GOAL_TIERS = {
+    sub60: { id: 'sub60', label: 'Sub 60', racePaceSec: 358, paceText: "5'58\"/km" },
+    sub65: { id: 'sub65', label: 'Sub 65', racePaceSec: 390, paceText: "6'30\"/km" },
+    sub70: { id: 'sub70', label: 'Dưới 70', racePaceSec: 418, paceText: "6'58\"/km" }
+  };
+  const DEFAULT_PROFILE = { weightKg: 73.7, lthr: 176, hrmax: 186, test3kSec: 1268, cadenceTarget: 172 };
+
+  function getZones(lthr) {
+    return [
+      { z: 1, name: 'Warmup', min: 0, max: Math.round(lthr * 0.84), color: '#94A3B8', pace: "9'05\"+" },
+      { z: 2, name: 'Easy', min: Math.round(lthr * 0.85), max: Math.round(lthr * 0.89), color: '#9D85FF', pace: "8'16\"–9'01\"" },
+      { z: 3, name: 'Aerobic', min: Math.round(lthr * 0.90), max: Math.round(lthr * 0.94), color: '#C8FF00', pace: "7'30\"–8'15\"" },
+      { z: 4, name: 'Threshold', min: Math.round(lthr * 0.95), max: Math.round(lthr * 0.99), color: '#FFB020', pace: "6'55\"–7'29\"" },
+      { z: 5, name: 'VO2max', min: lthr, max: 220, color: '#FF3B5C', pace: "< 6'55\"" }
+    ];
+  }
+
+  function buildSchedule(goalId) {
+    const rp = GOAL_TIERS[goalId].racePaceSec, easyMin = 496, easyMax = 541, tempoMin = rp + 75, tempoMax = rp + 90, intervalMin = rp + 45, intervalMax = rp + 60, progMin = rp + 90, progMax = rp + 110;
+    return [
+      { week: 1, dateRange: '16/11/2026 - 22/11/2026', focus: 'Xây nền tảng hiếu khí Z2, cho phép chạy xen kẽ đi bộ.',
+        workouts: [
+          { id: '1-thu-e', day: 'Thứ 5', title: 'Easy 3,0 km (Chạy 4\' / Đi 1\')', type: 'Easy', totalKm: 3.0, desc: '3,0 km easy pace 8\'16"–9\'01", giữ tim dưới ngưỡng Z2.',
+            segments: [
+              { name: 'Khởi động 400m', distKm: 0.4, paceMin: 530, paceMax: 580, zone: 1, cue: 'Bắt đầu khởi động nhẹ nhàng.' },
+              { name: 'Easy Z2 (2,1 km)', distKm: 2.1, paceMin: easyMin, paceMax: easyMax, zone: 2, cue: 'Vào nhịp easy, giữ tim vùng hai.' },
+              { name: 'Thả lỏng 500m', distKm: 0.5, paceMin: 540, paceMax: 600, zone: 1, cue: 'Năm trăm mét thả lỏng về đích.' }
+            ] },
+          { id: '1-sat-e', day: 'Thứ 7', title: 'Easy 4,0 km Tích Lũy', type: 'Easy', totalKm: 4.0, desc: 'Chạy bền nhẹ nhàng, guồng chân 172 SPM.',
+            segments: [
+              { name: 'Khởi động 500m', distKm: 0.5, paceMin: 530, paceMax: 580, zone: 1, cue: 'Bắt đầu khởi động.' },
+              { name: 'Easy Z2 (3,0 km)', distKm: 3.0, paceMin: easyMin, paceMax: easyMax, zone: 2, cue: 'Giữ nhịp bước đều.' },
+              { name: 'Thả lỏng 500m', distKm: 0.5, paceMin: 540, paceMax: 600, zone: 1, cue: 'Thả lỏng năm trăm mét cuối.' }
+            ] },
+          { id: '1-sun-op', day: 'Chủ Nhật', title: 'Easy 20–25 phút (Tùy chọn)', type: 'Recovery', totalKm: 2.5, desc: 'Thả lỏng tùy chọn 2,5 km.',
+            segments: [{ name: 'Thả lỏng (2,5 km)', distKm: 2.5, paceMin: 530, paceMax: 590, zone: 1, cue: 'Thả lỏng tối đa.' }] }
+        ] },
+      { week: 2, dateRange: '23/11/2026 - 29/11/2026', focus: 'Kích hoạt guồng chân với Strides 15s & tăng cự ly lên 5 km.',
+        workouts: [
+          { id: '2-thu-s', day: 'Thứ 5', title: 'Easy 3,0 km + 4×15s Strides', type: 'Strides', totalKm: 3.5, desc: '3,0 km Z2 + 4 tổ bứt tốc 15 giây.',
+            segments: [
+              { name: 'Easy Z2 (2,8 km)', distKm: 2.8, paceMin: easyMin, paceMax: easyMax, zone: 2, cue: 'Chạy nhẹ nhàng ba cây số.' },
+              { name: '4×15s Strides', distKm: 0.4, paceMin: rp, paceMax: rp + 30, zone: 4, cue: 'Bứt tốc mười lăm giây.' },
+              { name: 'Thả lỏng 300m', distKm: 0.3, paceMin: 560, paceMax: 650, zone: 1, cue: 'Đi bộ thở sâu.' }
+            ] },
+          { id: '2-sat-e', day: 'Thứ 7', title: 'Easy 5,0 km Hiếu Khí', type: 'Easy', totalKm: 5.0, desc: 'Chạy bền hiếu khí Zone 2.',
+            segments: [
+              { name: 'Khởi động 1,0 km', distKm: 1.0, paceMin: 520, paceMax: 570, zone: 1, cue: 'Khởi động một cây số.' },
+              { name: 'Easy Z2 (3,5 km)', distKm: 3.5, paceMin: easyMin, paceMax: easyMax, zone: 2, cue: 'Giữ đều chân vùng hai.' },
+              { name: 'Thả lỏng 500m', distKm: 0.5, paceMin: 540, paceMax: 600, zone: 1, cue: 'Thả lỏng về đích.' }
+            ] }
+        ] },
+      { week: 3, dateRange: '30/11/2026 - 06/12/2026', focus: 'Làm quen Tempo ngưỡng lactate & Long Run 6,0 km.',
+        workouts: [
+          { id: '3-thu-t', day: 'Thứ 5', title: '2×1,5 km Tempo (5,5 km)', type: 'Tempo', totalKm: 5.5, desc: '1 km nóng + 2×1,5 km tempo (nghỉ 2\') + 0,5 km thả lỏng.',
+            segments: [
+              { name: 'Khởi động 1,0 km', distKm: 1.0, paceMin: 520, paceMax: 560, zone: 1, cue: 'Khởi động một cây số.' },
+              { name: 'Tổ 1: 1,5 km Tempo', distKm: 1.5, paceMin: tempoMin, paceMax: tempoMax, zone: 4, cue: 'Tổ một tempo.' },
+              { name: 'Đi bộ 0,5 km', distKm: 0.5, paceMin: 580, paceMax: 680, zone: 1, cue: 'Đi bộ hai phút.' },
+              { name: 'Tổ 2: 1,5 km Tempo', distKm: 1.5, paceMin: tempoMin, paceMax: tempoMax, zone: 4, cue: 'Tổ hai tempo.' },
+              { name: 'Thả lỏng 1,0 km', distKm: 1.0, paceMin: 540, paceMax: 600, zone: 1, cue: 'Thả lỏng một km cuối.' }
+            ] },
+          { id: '3-sat-l', day: 'Thứ 7', title: 'Long Easy 6,0 km', type: 'Long', totalKm: 6.0, desc: 'Sáu cây số chạy dài hiếu khí.',
+            segments: [
+              { name: 'Long Easy (5,5 km)', distKm: 5.5, paceMin: easyMin, paceMax: easyMax, zone: 2, cue: 'Bắt đầu sáu cây số chạy dài.' },
+              { name: 'Thả lỏng 500m', distKm: 0.5, paceMin: 540, paceMax: 600, zone: 1, cue: 'Thả lỏng kết thúc.' }
+            ] }
+        ] },
+      { week: 4, dateRange: '07/12/2026 - 13/12/2026', focus: 'Tuần giảm tải & BÀI TEST 3 KM HẾT SỨC.',
+        workouts: [
+          { id: '4-thu-e', day: 'Thứ 5', title: 'Easy 3,5 km + Strides', type: 'Strides', totalKm: 3.5, desc: 'Giữ sức cho bài test cuối tuần.',
+            segments: [
+              { name: 'Easy 3,1 km', distKm: 3.1, paceMin: easyMin, paceMax: easyMax, zone: 2, cue: 'Chạy nhẹ nhàng.' },
+              { name: '4×15s Strides', distKm: 0.4, paceMin: rp, paceMax: rp + 30, zone: 4, cue: 'Bứt tốc ngắn.' }
+            ] },
+          { id: '4-sat-test', day: 'Thứ 7', title: 'CHECKPOINT: TEST 3,0 KM', type: 'Checkpoint', totalKm: 5.5, desc: '1,5 km nóng + 3,0 km test hết sức + 1 km thả lỏng.',
+            segments: [
+              { name: 'Khởi động 1,5 km', distKm: 1.5, paceMin: 520, paceMax: 560, zone: 2, cue: 'Khởi động kỹ chuẩn bị test.' },
+              { name: 'TEST 3,0 KM HẾT SỨC', distKm: 3.0, paceMin: rp - 15, paceMax: rp + 10, zone: 5, cue: 'Bắt đầu ba cây số kiểm tra thể lực.' },
+              { name: 'Thả lỏng 1,0 km', distKm: 1.0, paceMin: 550, paceMax: 620, zone: 1, cue: 'Hoàn thành bài test.' }
+            ] }
+        ] },
+      { week: 5, dateRange: '14/12/2026 - 20/12/2026', focus: 'Kích hoạt tốc độ VO2max với Interval 5×400m & Long 7 km.',
+        workouts: [
+          { id: '5-thu-int', day: 'Thứ 5', title: 'Interval 5×400m (4,5 km)', type: 'Interval', totalKm: 4.5, desc: '1 km nóng + 5×400m nhanh + 1 km thả lỏng.',
+            segments: [
+              { name: 'Khởi động 1,0 km', distKm: 1.0, paceMin: 520, paceMax: 560, zone: 1, cue: 'Khởi động một cây số.' },
+              { name: '5×400m Interval', distKm: 2.5, paceMin: intervalMin, paceMax: intervalMax, zone: 5, cue: 'Đẩy nhanh guồng chân.' },
+              { name: 'Thả lỏng 1,0 km', distKm: 1.0, paceMin: 540, paceMax: 600, zone: 1, cue: 'Thả lỏng một cây số.' }
+            ] },
+          { id: '5-sat-l', day: 'Thứ 7', title: 'Long 7,0 km (Prog 1 km)', type: 'Long', totalKm: 7.0, desc: '6 km Easy + 1 km cuối tăng tốc nhẹ.',
+            segments: [
+              { name: 'Easy Z2 (6,0 km)', distKm: 6.0, paceMin: easyMin, paceMax: easyMax, zone: 2, cue: 'Sáu cây số nhẹ nhàng.' },
+              { name: 'Progression 1,0 km', distKm: 1.0, paceMin: progMin, paceMax: progMax, zone: 3, cue: 'Một cây số cuối tăng tốc.' }
+            ] }
+        ] },
+      { week: 6, dateRange: '21/12/2026 - 27/12/2026', focus: 'Ngưỡng lactate 2×2 km Tempo & Long Run 8 km.',
+        workouts: [
+          { id: '6-thu-t', day: 'Thứ 5', title: '2×2,0 km Tempo (5,5 km)', type: 'Tempo', totalKm: 5.5, desc: '1 km nóng + 2×2 km tempo + 0,5 km thả lỏng.',
+            segments: [
+              { name: 'Khởi động 1,0 km', distKm: 1.0, paceMin: 520, paceMax: 560, zone: 1, cue: 'Khởi động một cây số.' },
+              { name: '2×2,0 km Tempo', distKm: 4.0, paceMin: tempoMin, paceMax: tempoMax, zone: 4, cue: 'Tăng tốc vào đoạn tempo!' },
+              { name: 'Thả lỏng 500m', distKm: 0.5, paceMin: 550, paceMax: 610, zone: 1, cue: 'Thả lỏng về đích.' }
+            ] },
+          { id: '6-sat-l', day: 'Thứ 7', title: 'Long 8,0 km (Prog 1,5 km)', type: 'Long', totalKm: 8.0, desc: '6,5 km Z2 + 1,5 km cuối tăng tốc nhẹ.',
+            segments: [
+              { name: 'Easy Z2 (6,5 km)', distKm: 6.5, paceMin: easyMin, paceMax: easyMax, zone: 2, cue: 'Giữ nhịp đều.' },
+              { name: 'Progression 1,5 km', distKm: 1.5, paceMin: progMin, paceMax: progMax, zone: 3, cue: 'Tăng tốc nhẹ nhàng về đích.' }
+            ] }
+        ] },
+      { week: 7, dateRange: '28/12/2026 - 03/01/2027', focus: 'ĐỈNH KHỐI LƯỢNG: Interval 4×800m & Long 9 km (2 km Race Pace).',
+        workouts: [
+          { id: '7-thu-int', day: 'Thứ 5', title: 'Interval 4×800m (6,2 km)', type: 'Interval', totalKm: 6.2, desc: '1 km nóng + 4×800m + 1 km thả lỏng.',
+            segments: [
+              { name: 'Khởi động 1,0 km', distKm: 1.0, paceMin: 520, paceMax: 560, zone: 1, cue: 'Khởi động một cây số.' },
+              { name: '4×800m Biến tốc', distKm: 4.2, paceMin: intervalMin, paceMax: intervalMax, zone: 5, cue: 'Tám trăm mét biến tốc.' },
+              { name: 'Thả lỏng 1,0 km', distKm: 1.0, paceMin: 540, paceMax: 600, zone: 1, cue: 'Chạy nhẹ một cây số.' }
+            ] },
+          { id: '7-sat-cp', day: 'Thứ 7', title: 'Long 9,0 km (2 km Race Pace)', type: 'Checkpoint', totalKm: 9.0, desc: '7 km easy + 2 km cuối Race Pace.',
+            segments: [
+              { name: 'Easy 7,0 km', distKm: 7.0, paceMin: easyMin, paceMax: easyMax, zone: 2, cue: 'Bảy cây số tiết kiệm năng lượng.' },
+              { name: 'TEST 2,0 KM RACE PACE', distKm: 2.0, paceMin: rp - 5, paceMax: rp + 8, zone: 4, cue: 'Đẩy lên đúng tốc độ thi đấu.' }
+            ] }
+        ] },
+      { week: 8, dateRange: '04/01/2027 - 10/01/2027', focus: 'Giai đoạn Taper giảm tải, giữ cảm giác tốc độ.',
+        workouts: [
+          { id: '8-thu-rp', day: 'Thứ 5', title: '2 km Race Pace + Strides', type: 'Tempo', totalKm: 4.0, desc: '1 km nóng + 2 km tốc độ đua + 1 km thả lỏng.',
+            segments: [
+              { name: 'Khởi động 1,0 km', distKm: 1.0, paceMin: 520, paceMax: 560, zone: 1, cue: 'Khởi động.' },
+              { name: '2,0 km Race Pace', distKm: 2.0, paceMin: rp - 5, paceMax: rp + 8, zone: 4, cue: 'Hai cây số tốc độ đua.' },
+              { name: 'Thả lỏng + Strides', distKm: 1.0, paceMin: 520, paceMax: 580, zone: 2, cue: 'Thả lỏng nhẹ nhàng.' }
+            ] },
+          { id: '8-sat-e', day: 'Thứ 7', title: 'Easy 6,0 km (1 km Race Pace)', type: 'Easy', totalKm: 6.0, desc: 'Giảm tải cuối tuần, 1 km giữa ở pace mục tiêu.',
+            segments: [
+              { name: 'Easy 2,5 km', distKm: 2.5, paceMin: easyMin, paceMax: easyMax, zone: 2, cue: 'Hai cây rưỡi nhẹ nhàng.' },
+              { name: '1,0 km Race Pace', distKm: 1.0, paceMin: rp - 5, paceMax: rp + 8, zone: 4, cue: 'Một cây số tốc độ thi đấu.' },
+              { name: 'Easy 2,5 km', distKm: 2.5, paceMin: easyMin, paceMax: easyMax, zone: 2, cue: 'Hai cây rưỡi thả lỏng.' }
+            ] }
+        ] },
+      { week: 9, dateRange: '11/01/2027 - 17/01/2027', focus: 'TUẦN RACE DAY: Shakeout & NGÀY ĐUA 10 KM (16/01/2027).',
+        workouts: [
+          { id: '9-thu-shk', day: 'Thứ 5', title: 'Shakeout 3,0 km + Strides', type: 'Recovery', totalKm: 3.3, desc: 'Rũ chân nhẹ nhàng hai ngày trước đua.',
+            segments: [
+              { name: 'Shakeout 3,0 km', distKm: 3.0, paceMin: easyMin, paceMax: easyMax, zone: 1, cue: 'Chạy rũ chân thư giãn.' },
+              { name: '3×80m Strides', distKm: 0.3, paceMin: rp, paceMax: rp + 20, zone: 3, cue: 'Bứt tốc nhẹ đánh thức cơ.' }
+            ] },
+          { id: '9-sat-race', day: 'Thứ 7 · 16/01', title: 'RACE DAY 10,0 KM', type: 'Race', totalKm: 10.0, desc: 'Chiến thuật 3 chặng: Km 1–2 kìm chân, Km 3–8 Race Pace, Km 9–10 rút đích.',
+            segments: [
+              { name: 'Chặng 1 (Km 1–2): Kìm chân', distKm: 2.0, paceMin: rp + 8, paceMax: rp + 18, zone: 3, cue: 'Xuất phát kìm chân.' },
+              { name: 'Chặng 2 (Km 3–8): Race Pace', distKm: 6.0, paceMin: rp - 3, paceMax: rp + 5, zone: 4, cue: 'Duy trì đúng tốc độ mục tiêu.' },
+              { name: 'Chặng 3 (Km 9–10): Rút đích', distKm: 2.0, paceMin: rp - 15, paceMax: rp, zone: 5, cue: 'Dốc hết sức về đích!' }
+            ] }
+        ] }
+    ];
+  }
+
+  function loadStorage(k, fb) { try { const r = localStorage.getItem(k); return r ? JSON.parse(r) : fb; } catch (e) { return fb; } }
+  function saveStorage(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+
+  const state = {
+    activeTab: 'plan',
+    goalId: loadStorage('sub60_goal', 'sub60'),
+    selectedWeek: 1,
+    selectedFeeling: 'normal',
+    profile: loadStorage('sub60_profile', { ...DEFAULT_PROFILE }),
+    geminiKey: loadStorage('sub60_gemini_key', ''),
+    history: loadStorage('sub60_history', []),
+    cpMode: 'w4',
+    audioEnabled: true,
+    metronomeActive: false,
+    metronomeBpm: 172,
+    run: { workout: null, mode: 'sim', simSpeed: 1, simPaceSec: 360, simHr: 142, status: 'idle', segIdx: 0, segDistKm: 0, totalDistKm: 0, elapsedSec: 0, lastTickMs: 0, currentPaceSec: 360, currentHr: 142, bleConnected: false, bleDevice: null, lastCoachMs: 0, lastPos: null }
+  };
+
+  function fmtPace(sec) { if (!sec || !isFinite(sec) || sec <= 0 || sec > 1200) return "--'--\""; const m = Math.floor(sec / 60), s = Math.round(sec % 60); return s === 60 ? `${m + 1}'00"` : `${m}'${String(s).padStart(2, '0')}"`; }
+  function fmtMmSs(t) { const s = Math.max(0, Math.floor(t)); return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; }
+  function parseMmSs(str) { const p = String(str).trim().split(':'); if (p.length !== 2) return null; const m = parseInt(p[0], 10), s = parseInt(p[1], 10); return (isNaN(m) || isNaN(s) || s < 0 || s >= 60) ? null : m * 60 + s; }
+  function showToast(msg) { const el = document.getElementById('toastBox'); el.textContent = msg; el.classList.remove('hidden'); clearTimeout(showToast._t); showToast._t = setTimeout(() => el.classList.add('hidden'), 2400); }
+  function getZoneForHr(hr) { const z = getZones(state.profile.lthr); for (const item of z) if (hr <= item.max) return item; return z[4]; }
+
+  let audioCtx = null;
+  function ensureAudioCtx() { if (!audioCtx) { const AC = window.AudioContext || window.webkitAudioContext; if (AC) audioCtx = new AC(); } if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); }
+  function playEarcon() {
+    if (!state.audioEnabled) return; ensureAudioCtx(); if (!audioCtx) return;
+    const now = audioCtx.currentTime, o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(880, now); o.frequency.exponentialRampToValueAtTime(1174, now + 0.12);
+    g.gain.setValueAtTime(0.16, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+    o.connect(g); g.connect(audioCtx.destination); o.start(now); o.stop(now + 0.2);
+  }
+  function playMetronomeTick() {
+    ensureAudioCtx(); if (!audioCtx) return;
+    const now = audioCtx.currentTime, o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = 'triangle'; o.frequency.setValueAtTime(1050, now);
+    g.gain.setValueAtTime(0.12, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
+    o.connect(g); g.connect(audioCtx.destination); o.start(now); o.stop(now + 0.05);
+    const el = document.getElementById('cadenceValWrap'); el.classList.add('metro-flash'); setTimeout(() => el.classList.remove('metro-flash'), 90);
+  }
+  let candyHideTimer = null;
+  function triggerCandyPopup(text) {
+    const overlay = document.getElementById('candyOverlay');
+    const card = document.getElementById('candyCard');
+    const ribbon = document.getElementById('candyRibbon');
+    const title = document.getElementById('candyTitle');
+    const sub = document.getElementById('candySub');
+    const sparks = document.getElementById('candySparks');
+    if (!overlay || !card) return;
+
+    const tl = text.toLowerCase();
+    let badge = 'AUDIO COACH', big = 'ON PACE!', bg = 'bg-[#111218]', border = 'border-[#C8FF00]', rCls = 'bg-[#C8FF00] text-[#08090C]', tCls = 'text-[#C8FF00]';
+    if (tl.includes('nguy hiểm') || tl.includes('đi bộ ngay') || tl.includes('đau')) {
+      badge = 'HR ALERT'; big = 'SLOW DOWN!'; border = 'border-[#FF3B5C]'; rCls = 'bg-[#FF3B5C] text-white'; tCls = 'text-[#FF3B5C]';
+    } else if (tl.includes('hơi nhanh') || tl.includes('kìm')) {
+      badge = 'PACE CHECK'; big = 'KÌM CHÂN!'; border = 'border-[#4B2EFF]'; rCls = 'bg-[#4B2EFF] text-white'; tCls = 'text-[#9D85FF]';
+    } else if (tl.includes('hơi chậm') || tl.includes('đẩy')) {
+      badge = 'PACE BOOST'; big = 'PUSH IT!'; border = 'border-[#FFB020]'; rCls = 'bg-[#FFB020] text-[#08090C]'; tCls = 'text-[#FFB020]';
+    } else if (tl.includes('hoàn thành') || tl.includes('tổ') || tl.includes('bắt đầu') || tl.includes('tempo')) {
+      badge = 'STAGE CLEAR'; big = 'LEVEL UP!'; border = 'border-[#C8FF00]'; rCls = 'bg-[#4B2EFF] text-[#C8FF00]'; tCls = 'text-[#C8FF00]';
+    } else {
+      badge = 'COMBO'; big = 'SWEET!'; border = 'border-[#C8FF00]'; rCls = 'bg-[#C8FF00] text-[#08090C]'; tCls = 'text-[#C8FF00]';
+    }
+
+    card.className = `relative max-w-xs w-full text-center p-5 contest-cut border-2 shadow-[0_20px_60px_rgba(0,0,0,0.85)] ${bg} ${border} candy-enter`;
+    ribbon.className = `inline-block px-3 py-0.5 rounded-full text-[11px] font-display font-black uppercase tracking-[0.2em] mb-1.5 ${rCls}`;
+    ribbon.textContent = badge;
+    title.className = `font-display italic text-5xl font-black uppercase leading-none tracking-tight drop-shadow-[0_4px_0_rgba(0,0,0,0.6)] ${tCls}`;
+    title.textContent = big;
+    sub.className = 'text-sm font-bold text-white mt-2 leading-snug';
+    sub.textContent = text;
+
+    // Spawn 14 neon confetti sparks
+    sparks.innerHTML = '';
+    const colors = ['#C8FF00', '#4B2EFF', '#9D85FF', '#FFFFFF'];
+    for (let i = 0; i < 14; i++) {
+      const sp = document.createElement('span');
+      const ang = (Math.PI * 2 * i) / 14 + (Math.random() * 0.3);
+      const dist = 85 + Math.random() * 75;
+      sp.className = 'spark-dot';
+      sp.style.background = colors[i % colors.length];
+      sp.style.setProperty('--tx', `${Math.round(Math.cos(ang) * dist)}px`);
+      sp.style.setProperty('--ty', `${Math.round(Math.sin(ang) * dist)}px`);
+      sparks.appendChild(sp);
+    }
+
+    overlay.classList.remove('hidden');
+    clearTimeout(candyHideTimer);
+    candyHideTimer = setTimeout(() => {
+      card.classList.remove('candy-enter');
+      card.classList.add('candy-exit');
+      setTimeout(() => overlay.classList.add('hidden'), 320);
+    }, 2200);
+  }
+
+  function speakCoach(text) {
+    document.getElementById('hudLastCoachMsg').textContent = text;
+    const eq = document.getElementById('coachEq'); eq.classList.add('eq-active'); setTimeout(() => eq.classList.remove('eq-active'), 2400);
+    triggerCandyPopup(text);
+    if (!state.audioEnabled) return; playEarcon();
+    if ('speechSynthesis' in window) { try { window.speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = 'vi-VN'; u.rate = 1.08; setTimeout(() => window.speechSynthesis.speak(u), 210); } catch (e) {} }
+  }
+  let metroTimer = null;
+  function updateMetronomeTimer() {
+    if (metroTimer) { clearInterval(metroTimer); metroTimer = null; }
+    const btn = document.getElementById('btnToggleMetronome');
+    if (state.metronomeActive) { btn.className = 'px-2.5 py-1 rounded-md bg-[#C8FF00] text-[#08090C] text-xs font-extrabold'; playMetronomeTick(); metroTimer = setInterval(playMetronomeTick, Math.round(60000 / state.metronomeBpm)); }
+    else { btn.className = 'px-2.5 py-1 rounded-md bg-[#181A24] text-xs font-bold text-[#CBD5E1]'; }
+  }
+
+  function renderGoalTiers() {
+    const grid = document.getElementById('goalTierGrid');
+    grid.innerHTML = Object.values(GOAL_TIERS).map(g => {
+      const act = g.id === state.goalId;
+      return `<button type="button" data-goal="${g.id}" class="goal-btn py-2 px-3 rounded-lg text-center transition ${act ? 'bg-[#C8FF00] text-[#08090C]' : 'text-[#CBD5E1] hover:text-white'}">
+        <div class="font-display text-lg font-black uppercase leading-none">${g.label}</div>
+        <div class="text-xs font-bold tabular-nums mt-0.5">${g.paceText}</div>
+      </button>`;
+    }).join('');
+    document.getElementById('headerGoalBadge').textContent = GOAL_TIERS[state.goalId].label.toUpperCase();
+    const htp = document.getElementById('heroTargetPaceText');
+    if (htp) htp.textContent = GOAL_TIERS[state.goalId].paceText;
+    const hdl = document.getElementById('heroDaysLeft');
+    if (hdl) {
+      const diff = Math.max(0, Math.ceil((new Date('2027-01-16T05:00:00') - new Date()) / 86400000));
+      hdl.textContent = diff;
+    }
+    grid.querySelectorAll('.goal-btn').forEach(btn => btn.addEventListener('click', () => {
+      state.goalId = btn.dataset.goal; saveStorage('sub60_goal', state.goalId); renderPlanTab(); renderVolumeChart();
+    }));
+  }
+
+  function renderWeeks() {
+    const schedule = buildSchedule(state.goalId), pills = document.getElementById('weekPills');
+    pills.innerHTML = schedule.map(w => `<button type="button" data-week="${w.week}" class="week-btn shrink-0 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${w.week === state.selectedWeek ? 'bg-[#4B2EFF] text-white' : 'bg-[#111218] text-[#94A3B8] hover:text-white'}">T${w.week}</button>`).join('');
+    pills.querySelectorAll('.week-btn').forEach(b => b.addEventListener('click', () => { state.selectedWeek = parseInt(b.dataset.week, 10); renderWeeks(); }));
+    const cur = schedule.find(w => w.week === state.selectedWeek) || schedule[0];
+    document.getElementById('weekTotalKm').textContent = `${cur.workouts.reduce((a, w) => a + w.totalKm, 0).toFixed(1)} KM`;
+    document.getElementById('weekDateRange').textContent = cur.dateRange;
+    document.getElementById('weekFocusDesc').textContent = cur.focus;
+
+    const list = document.getElementById('workoutsList');
+    const doneSet = new Set(state.history.map(h => h.title));
+    let nextAssigned = false;
+
+    function getStageIcon(type) {
+      // Checkered Finish Grid (Checkpoint / Race)
+      if (type === 'Race' || type === 'Checkpoint') return '<svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="4.5" height="4.5"/><rect x="12" y="3" width="4.5" height="4.5"/><rect x="7.5" y="7.5" width="4.5" height="4.5"/><rect x="16.5" y="7.5" width="4.5" height="4.5"/><rect x="3" y="12" width="4.5" height="4.5"/><rect x="12" y="12" width="4.5" height="4.5"/><rect x="7.5" y="16.5" width="4.5" height="4.5"/><rect x="16.5" y="16.5" width="4.5" height="4.5"/></svg>';
+      // Kinetic Swirl / Vortex (Tempo / Interval / Strides)
+      if (type === 'Tempo' || type === 'Interval' || type === 'Strides') return '<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 12c0-3 2.5-5 5-5 3 0 5 2.5 5 5 0 4.5-4 8-9 8-5.5 0-10-4-10-9.5C3 5.5 7.5 2 13 2"/></svg>';
+      // Oval 400m Running Track (Easy / Long / Recovery)
+      return '<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="6"/><rect x="5" y="9" width="14" height="6" rx="3"/></svg>';
+    }
+
+    const zColors = { 1: '#64748B', 2: '#4B2EFF', 3: '#9D85FF', 4: '#C8FF00', 5: '#FF3B5C' };
+
+    list.innerHTML = cur.workouts.map((w, wIdx) => {
+      const isDone = doneSet.has(w.title);
+      const isNext = !isDone && !nextAssigned;
+      if (isNext) nextAssigned = true;
+      const mainSeg = w.segments.reduce((a, b) => (b.distKm > a.distKm ? b : a), w.segments[0]);
+      const isHighlight = isNext || w.type === 'Checkpoint' || w.type === 'Race';
+
+      return `<div class="relative overflow-hidden bg-[#F8FAFC] text-[#08090C] contest-cut border-b-4 ${isNext ? 'border-b-[#C8FF00]' : 'border-b-[#4B2EFF]'} p-4 space-y-3 shadow-[0_10px_25px_rgba(0,0,0,0.45)]"><div class="pointer-events-none absolute inset-0 halftone-corner"></div>
+        <div class="flex items-start justify-between gap-2">
+          <div class="flex items-start gap-3 min-w-0">
+            <span class="w-10 h-10 rounded-full ${isHighlight ? 'bg-[#C8FF00] text-[#08090C]' : 'bg-[#4B2EFF]/15 text-[#4B2EFF]'} flex items-center justify-center shrink-0 mt-0.5">
+              ${getStageIcon(w.type)}
+            </span>
+            <div class="min-w-0">
+              <div class="flex flex-wrap items-center gap-1.5">
+                <span class="px-1.5 py-0.2 bg-[#4B2EFF] text-white font-display text-[11px] font-black uppercase tracking-wider">STAGE 0${wIdx + 1}</span>
+                ${isNext ? '<span class="px-1.5 py-0.2 bg-[#C8FF00] text-[#08090C] font-display text-[11px] font-black uppercase">NEXT</span>' : ''}
+                ${isDone ? '<span class="px-1.5 py-0.2 bg-emerald-600 text-white font-display text-[11px] font-black uppercase">✓ DONE</span>' : ''}
+                <span class="text-xs font-extrabold text-[#475569] uppercase">${w.day}</span>
+              </div>
+              <h3 class="font-display phi-text-sm font-black uppercase text-[#08090C] mt-1 tracking-wide">${w.title}</h3>
+            </div>
+          </div>
+          <div class="text-right shrink-0">
+            <div><span class="font-display phi-text-md font-black italic text-[#08090C] tabular-nums">${w.totalKm.toFixed(1)}</span><span class="font-display text-sm font-black text-[#4B2EFF] ml-0.5">KM</span></div>
+            <div class="text-[11px] font-extrabold text-[#475569] tabular-nums">Z${mainSeg.zone} · ${fmtPace(mainSeg.paceMin)}</div>
+          </div>
+        </div>
+
+        <!-- Mini-Timeline Segment Bar -->
+        <div class="flex h-2 w-full gap-1 overflow-hidden rounded-full bg-[#E2E8F0] p-0.5">
+          ${w.segments.map(s => `<div style="width:${Math.max(8, (s.distKm / w.totalKm) * 100)}%; background:${zColors[s.zone] || '#4B2EFF'}" class="h-full rounded-full" title="${s.name}"></div>`).join('')}
+        </div>
+
+        <div class="hidden seg-list space-y-1.5 pt-1" id="segs-${w.id}">
+          ${w.segments.map((s, idx) => `<div class="flex items-center justify-between text-xs bg-[#E2E8F0]/70 rounded-lg px-3 py-2">
+            <span class="text-[#08090C] font-semibold truncate pr-2">${idx + 1}. ${s.name}</span>
+            <span class="text-[#4B2EFF] font-extrabold tabular-nums shrink-0">${fmtPace(s.paceMin)}–${fmtPace(s.paceMax)}</span>
+          </div>`).join('')}
+        </div>
+        <div class="flex items-center justify-between gap-2 pt-0.5">
+          <button type="button" data-toggle="${w.id}" class="toggle-segs px-3 py-1.5 rounded-full bg-[#E2E8F0] text-xs font-bold text-[#334155] hover:bg-[#CBD5E1]">${w.segments.length} chặng ▾</button>
+          <button type="button" data-wid="${w.id}" class="start-workout-btn px-5 py-2 rounded-full ${isNext ? 'run-next-btn bg-[#C8FF00] text-[#08090C] ring-2 ring-[#08090C]' : 'bg-[#08090C] text-[#C8FF00]'} font-display text-lg font-black uppercase tracking-wider hover:brightness-95 transition flex items-center gap-1.5">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+            <span>RUN</span>
+          </button>
+        </div>
+      </div>`;
+    }).join('');
+    list.querySelectorAll('.start-workout-btn').forEach(btn => btn.addEventListener('click', () => {
+      const w = cur.workouts.find(x => x.id === btn.dataset.wid); if (w) loadWorkoutToHud(w);
+    }));
+    list.querySelectorAll('.toggle-segs').forEach(btn => btn.addEventListener('click', () => {
+      const el = document.getElementById(`segs-${btn.dataset.toggle}`);
+      el.classList.toggle('hidden');
+      btn.textContent = el.classList.contains('hidden') ? 'Chặng ▾' : 'Ẩn ▴';
+    }));
+  }
+
+  function getAdaptiveWorkout(f) {
+    const rp = GOAL_TIERS[state.goalId].racePaceSec;
+    if (f === 'fresh') return { id: 'adapt-fresh', title: 'Adaptive Tempo 3,5 km', totalKm: 3.5, reason: '1 km nóng + 2 km Tempo + 0,5 km thả lỏng.', segments: [
+      { name: 'Khởi động 1 km', distKm: 1.0, paceMin: 510, paceMax: 550, zone: 1, cue: 'Khởi động một cây số.' },
+      { name: 'Tempo 2 km', distKm: 2.0, paceMin: rp + 75, paceMax: rp + 90, zone: 4, cue: 'Vào đoạn tempo.' },
+      { name: 'Thả lỏng 500m', distKm: 0.5, paceMin: 540, paceMax: 600, zone: 1, cue: 'Thả lỏng về đích.' }
+    ] };
+    if (f === 'tired') return { id: 'adapt-tired', title: 'Phục hồi Z1/Z2 2,5 km', totalKm: 2.5, reason: 'Chạy chậm dưới 150 bpm để xả axit lactic.', segments: [{ name: 'Phục hồi 2,5 km', distKm: 2.5, paceMin: 520, paceMax: 580, zone: 2, cue: 'Chạy chậm rãi giữ tim thấp.' }] };
+    if (f === 'short20') return { id: 'adapt-20p', title: 'Kích hoạt nhanh 2,8 km', totalKm: 2.8, reason: 'Gọn 20 phút: 1 km nóng + 1,5 km nhanh đều + 300m hạ nhiệt.', segments: [
+      { name: 'Làm nóng 1 km', distKm: 1.0, paceMin: 510, paceMax: 550, zone: 1, cue: 'Khởi động.' },
+      { name: 'Tăng tốc 1,5 km', distKm: 1.5, paceMin: rp + 65, paceMax: rp + 85, zone: 3, cue: 'Tăng tốc đều.' },
+      { name: 'Hạ nhiệt 300m', distKm: 0.3, paceMin: 550, paceMax: 620, zone: 1, cue: 'Thả lỏng.' }
+    ] };
+    return { id: 'adapt-normal', title: 'Easy Nền Tảng 3,5 km', totalKm: 3.5, reason: '3,2 km Z2 + 3 strides 15s.', segments: [
+      { name: 'Easy Z2 (3,2 km)', distKm: 3.2, paceMin: 496, paceMax: 541, zone: 2, cue: 'Chạy nhẹ nhàng.' },
+      { name: '3×15s Strides', distKm: 0.3, paceMin: rp, paceMax: rp + 25, zone: 4, cue: 'Bứt tốc nhẹ 15 giây.' }
+    ] };
+  }
+
+  function renderAdaptive() {
+    const feelings = [{ id: 'fresh', label: 'Sung sức' }, { id: 'normal', label: 'Bình thường' }, { id: 'tired', label: 'Chân mỏi' }, { id: 'short20', label: 'Gấp 20p' }];
+    const pills = document.getElementById('feelingPills');
+    pills.innerHTML = feelings.map(f => `<button type="button" data-feel="${f.id}" class="feel-btn px-3 py-1.5 rounded-lg text-xs font-bold ${f.id === state.selectedFeeling ? 'bg-[#C8FF00] text-[#08090C]' : 'bg-[#181A24] text-[#CBD5E1]'}">${f.label}</button>`).join('');
+    pills.querySelectorAll('.feel-btn').forEach(b => b.addEventListener('click', () => { state.selectedFeeling = b.dataset.feel; renderAdaptive(); }));
+    const w = getAdaptiveWorkout(state.selectedFeeling);
+    document.getElementById('adaptiveCard').innerHTML = `<div class="flex items-center justify-between"><span class="text-sm font-bold text-white">${w.title}</span><span class="text-sm font-black text-[#C8FF00]">${w.totalKm} km</span></div><p class="text-xs text-[#94A3B8] mt-1">${w.reason}</p><button id="btnRunAdaptive" type="button" class="mt-3 w-full py-2 rounded-lg bg-[#4B2EFF] text-white text-xs font-extrabold">CHẠY BÀI NÀY</button>`;
+    document.getElementById('btnRunAdaptive').addEventListener('click', () => loadWorkoutToHud(w));
+  }
+
+  function renderPlanTab() { renderGoalTiers(); renderWeeks(); renderAdaptive(); document.getElementById('aiProviderBadge').textContent = state.geminiKey ? 'GEMINI LIVE' : 'OFFLINE AI PT'; }
+
+  async function askAiPt(q) {
+    const t = q.trim(); if (!t) return;
+    const box = document.getElementById('aiAnswerBox'); box.classList.remove('hidden'); box.textContent = 'PT đang phân tích...';
+    if (state.geminiKey) {
+      try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(state.geminiKey)}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts: [{ text: `PT chạy bộ 10km ${GOAL_TIERS[state.goalId].label}, LTHR ${state.profile.lthr}, ${state.profile.weightKg}kg, T3 cầu lông. Trả lời <3 câu tiếng Việt: ${t}` }] }] })
+        });
+        const d = await res.json(); const ans = d?.candidates?.[0]?.content?.parts?.[0]?.text; if (ans) { box.textContent = ans; return; }
+      } catch (e) {}
+    }
+    const ql = t.toLowerCase();
+    if (ql.includes('mỏi') || ql.includes('đau')) box.textContent = `Chạy phục hồi Z1/Z2 dưới ${Math.round(state.profile.lthr * 0.85)} bpm trong 20 phút và bật 172 SPM để giảm lực dội khớp gối.`;
+    else if (ql.includes('cầu lông')) box.textContent = 'Sau T3 cầu lông, T4 nên nghỉ hoặc chạy Easy 3,0 km cực chậm để giữ sức cho bài chính T5.';
+    else if (ql.includes('nước') || ql.includes('thở')) box.textContent = 'Uống 150–200 ml nước trước chạy 15 phút, giữ nhịp thở bụng 2-2.';
+    else box.textContent = `Giữ 80% thời lượng ở Zone 2 (${Math.round(state.profile.lthr * 0.85)}–${Math.round(state.profile.lthr * 0.89)} bpm) và theo dõi Audio Coach.`;
+  }
+
+  function evaluateCheckpoint() {
+    const sec = parseMmSs(document.getElementById('cpTimeInput').value), hr = parseInt(document.getElementById('cpHrInput').value, 10) || 170, box = document.getElementById('cpResultBox');
+    if (!sec) { showToast('Nhập mm:ss'); return; }
+    box.classList.remove('hidden');
+    if (state.cpMode === 'w4') {
+      const pred10k = sec * Math.pow(10 / 3, 1.06);
+      let recId = 'sub60', msg = 'Đúng hướng Sub 60!';
+      if (sec > 1170) { recId = 'sub70'; msg = 'Gợi ý chuyển sang Dưới 70 phút.'; }
+      else if (sec > 1110 || hr > state.profile.lthr + 5) { recId = 'sub65'; msg = 'Gợi ý chuyển sang Sub 65.'; }
+      box.innerHTML = `<div class="font-bold text-white">Dự báo 10 km: <span class="text-[#C8FF00]">${fmtMmSs(pred10k)}</span></div><p class="text-[#CBD5E1]">${msg}</p>${recId !== state.goalId ? `<button id="btnApplyCpGoal" type="button" class="mt-2 px-3 py-1.5 rounded-lg bg-[#C8FF00] text-[#08090C] font-extrabold text-xs">Áp dụng ${GOAL_TIERS[recId].label}</button>` : ''}`;
+      const b = document.getElementById('btnApplyCpGoal'); if (b) b.addEventListener('click', () => { state.goalId = recId; saveStorage('sub60_goal', recId); renderPlanTab(); renderVolumeChart(); document.getElementById('checkpointModal').classList.add('hidden'); });
+    } else {
+      const rp = GOAL_TIERS[state.goalId].racePaceSec; let recId = state.goalId, msg = 'Đạt chuẩn Race Pace!';
+      if (sec - rp > 15 || hr > state.profile.lthr + 6) { recId = state.goalId === 'sub60' ? 'sub65' : 'sub70'; msg = `Gợi ý hạ sang ${GOAL_TIERS[recId].label}.`; }
+      box.innerHTML = `<div class="font-bold text-white">Pace Test: <span class="text-[#C8FF00]">${fmtPace(sec)}</span></div><p class="text-[#CBD5E1]">${msg}</p>${recId !== state.goalId ? `<button id="btnApplyCpGoal7" type="button" class="mt-2 px-3 py-1.5 rounded-lg bg-[#C8FF00] text-[#08090C] font-extrabold text-xs">Áp dụng ${GOAL_TIERS[recId].label}</button>` : ''}`;
+      const b = document.getElementById('btnApplyCpGoal7'); if (b) b.addEventListener('click', () => { state.goalId = recId; saveStorage('sub60_goal', recId); renderPlanTab(); renderVolumeChart(); document.getElementById('checkpointModal').classList.add('hidden'); });
+    }
+  }
+
+  function switchTab(tab) {
+    state.activeTab = tab;
+    ['plan', 'hud', 'stats'].forEach(t => document.getElementById(`tab-${t}`).classList.toggle('hidden', t !== tab));
+    document.querySelectorAll('.nav-btn').forEach(b => {
+      const act = b.dataset.tab === tab;
+      b.className = `nav-btn py-2 rounded-xl flex items-center justify-center gap-2 font-display font-black uppercase text-sm ${act ? 'bg-[#C8FF00] text-[#08090C]' : 'text-[#94A3B8] hover:text-white'}`;
+    });
+    if (tab === 'stats') renderStatsTab();
+  }
+
+  function loadWorkoutToHud(workout) {
+    state.run.workout = workout; state.run.status = 'idle'; state.run.segIdx = 0; state.run.segDistKm = 0; state.run.totalDistKm = 0; state.run.elapsedSec = 0;
+    const f = workout.segments[0]; state.run.simPaceSec = Math.round((f.paceMin + f.paceMax) / 2); state.run.currentPaceSec = state.run.simPaceSec;
+    document.getElementById('simPaceSlider').value = state.run.simPaceSec; document.getElementById('simPaceDisplay').textContent = fmtPace(state.run.simPaceSec) + '/km';
+    switchTab('hud'); renderHud();
+  }
+
+  function renderHud() {
+    const r = state.run; if (!r.workout) r.workout = buildSchedule(state.goalId)[0].workouts[0];
+    const seg = r.workout.segments[r.segIdx] || r.workout.segments[r.workout.segments.length - 1];
+    document.getElementById('hudWorkoutTitle').textContent = r.workout.title;
+    const sm = { idle: ['SẴN SÀNG', 'bg-[#94A3B8]', 'text-[#CBD5E1]'], running: ['ĐANG CHẠY', 'bg-[#C8FF00]', 'text-[#C8FF00]'], paused: ['TẠM DỪNG', 'bg-[#FFB020]', 'text-[#FFB020]'], recovery: ['ĐI BỘ HỒI PHỤC', 'bg-[#FFB020]', 'text-[#FFB020]'], completed: ['HOÀN THÀNH', 'bg-[#9D85FF]', 'text-[#9D85FF]'] }[r.status];
+    document.getElementById('hudStatusLabel').textContent = sm[0]; document.getElementById('hudStatusLabel').className = `text-xs font-bold uppercase tracking-wider ${sm[2]}`;
+    document.getElementById('hudStatusDot').className = `w-2.5 h-2.5 rounded-full ${sm[1]}`;
+    document.getElementById('recoveryBanner').classList.toggle('hidden', r.status !== 'recovery');
+
+    document.getElementById('hudSegmentTag').textContent = `CHẶNG ${r.segIdx + 1}/${r.workout.segments.length}`;
+    document.getElementById('hudSegmentName').textContent = seg.name;
+    document.getElementById('hudSegmentTarget').textContent = `${fmtPace(seg.paceMin)}–${fmtPace(seg.paceMax)}`;
+    const segPct = Math.min(100, Math.round((r.segDistKm / seg.distKm) * 100));
+    
+    const pf = document.getElementById('hudPillFill'); if (pf) pf.style.width = `${Math.max(12, segPct)}%`;
+    const pt = document.getElementById('hudPctText'); if (pt) pt.textContent = `${segPct}%`;
+    const nextSeg = r.workout.segments[r.segIdx + 1];
+    const nsn = document.getElementById('hudNextSegName');
+    if (nsn) nsn.textContent = nextSeg ? nextSeg.name : 'Về đích · Hoàn thành bài!';
+
+    document.getElementById('hudSegRemain').textContent = `Còn ${Math.max(0, seg.distKm - r.segDistKm).toFixed(2)} km`;
+
+    document.getElementById('hudPaceValue').textContent = fmtPace(r.currentPaceSec).replace('"', '');
+    const ps = document.getElementById('hudPaceStatus');
+    if (r.currentPaceSec < seg.paceMin - 5) { ps.textContent = 'QUÁ NHANH'; ps.className = 'px-2 py-0.5 rounded-full bg-[#4B2EFF] text-white text-[11px] font-extrabold'; }
+    else if (r.currentPaceSec > seg.paceMax + 5) { ps.textContent = 'HƠI CHẬM'; ps.className = 'px-2 py-0.5 rounded-full bg-[#FFB020] text-[#08090C] text-[11px] font-extrabold'; }
+    else { ps.textContent = 'ĐÚNG NHỊP'; ps.className = 'px-2 py-0.5 rounded-full bg-[#C8FF00] text-[#08090C] text-[11px] font-extrabold'; }
+
+    const z = getZoneForHr(r.currentHr);
+    document.getElementById('hudHrValue').textContent = Math.round(r.currentHr);
+    document.getElementById('hudZoneBadge').textContent = `Z${z.z}`;
+    document.getElementById('hudZoneBadge').style.color = z.color;
+    document.getElementById('hudHrCard').classList.toggle('bg-[#FF3B5C]/15', r.currentHr >= state.profile.hrmax - 6);
+    document.getElementById('hudTotalDist').textContent = r.totalDistKm.toFixed(2);
+    document.getElementById('hudElapsedTime').textContent = fmtMmSs(r.elapsedSec);
+    document.getElementById('hudCadence').textContent = state.metronomeActive ? state.metronomeBpm : state.profile.cadenceTarget;
+    document.getElementById('startPauseText').textContent = r.status === 'running' ? 'PAUSE' : (r.status === 'paused' ? 'RESUME' : 'START');
+  }
+
+  let runInterval = null, gpsWatchId = null;
+  function haversineKm(a, b, c, d) { const R = 6371, dLat = (c - a) * Math.PI / 180, dLon = (d - b) * Math.PI / 180, x = Math.sin(dLat / 2) ** 2 + Math.cos(a * Math.PI / 180) * Math.cos(c * Math.PI / 180) * Math.sin(dLon / 2) ** 2; return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x)); }
+  function startRunLoop() {
+    if (runInterval) clearInterval(runInterval);
+    state.run.lastTickMs = Date.now();
+    if (state.run.mode === 'gps' && 'geolocation' in navigator) {
+      try {
+        gpsWatchId = navigator.geolocation.watchPosition(pos => {
+          const { latitude, longitude, speed } = pos.coords;
+          if (state.run.lastPos && state.run.status === 'running') { const d = haversineKm(state.run.lastPos.lat, state.run.lastPos.lon, latitude, longitude); if (d > 0.002 && d < 0.1) { state.run.segDistKm += d; state.run.totalDistKm += d; } }
+          if (speed && speed > 0.5) state.run.currentPaceSec = Math.min(900, Math.max(180, Math.round(1000 / speed)));
+          state.run.lastPos = { lat: latitude, lon: longitude };
+        }, () => { showToast('GPS không khả dụng, chuyển SIM.'); setRunMode('sim'); }, { enableHighAccuracy: true, maximumAge: 2000 });
+      } catch (e) {}
+    }
+    runInterval = setInterval(() => {
+      const r = state.run; if (r.status !== 'running' && r.status !== 'recovery') return;
+      const now = Date.now(), dtReal = (now - r.lastTickMs) / 1000; r.lastTickMs = now;
+      const dt = r.mode === 'sim' ? dtReal * r.simSpeed : dtReal;
+      r.elapsedSec += dt;
+      if (r.mode === 'sim') { r.currentPaceSec = r.status === 'recovery' ? 720 : r.simPaceSec; if (!r.bleConnected) r.currentHr = r.simHr; const inc = dt / r.currentPaceSec; r.segDistKm += inc; r.totalDistKm += inc; }
+      const seg = r.workout.segments[r.segIdx];
+      if (r.status === 'running' && seg && r.segDistKm >= seg.distKm) {
+        if (r.segIdx < r.workout.segments.length - 1) { r.segIdx += 1; r.segDistKm = 0; const ns = r.workout.segments[r.segIdx]; if (r.mode === 'sim') { r.simPaceSec = Math.round((ns.paceMin + ns.paceMax) / 2); document.getElementById('simPaceSlider').value = r.simPaceSec; document.getElementById('simPaceDisplay').textContent = fmtPace(r.simPaceSec) + '/km'; } speakCoach(ns.cue); }
+        else { r.status = 'completed'; speakCoach('Hoàn thành bài tập!'); openPostRunModal(); }
+      }
+      if (r.status === 'running' && now - r.lastCoachMs > 18000) {
+        r.lastCoachMs = now; const z = getZoneForHr(r.currentHr), pw = fmtPace(r.currentPaceSec).replace("'", ' phút ').replace('"', '');
+        if (r.currentHr >= state.profile.hrmax - 6) speakCoach(`Nguy hiểm, Zone 5, Pace ${pw}, Tim ${Math.round(r.currentHr)}, đi bộ ngay`);
+        else if (r.currentPaceSec < seg.paceMin - 8) speakCoach(`Hơi nhanh, Zone ${z.z}, Pace ${pw}, Tim ${Math.round(r.currentHr)}, kìm chân lại`);
+        else if (r.currentPaceSec > seg.paceMax + 8) speakCoach(`Hơi chậm, Zone ${z.z}, Pace ${pw}, Tim ${Math.round(r.currentHr)}, đẩy guồng chân`);
+        else speakCoach(`Đúng nhịp, Zone ${z.z}, Pace ${pw}, Tim ${Math.round(r.currentHr)}, giữ đều chân`);
+      }
+      renderHud();
+    }, 500);
+  }
+  function stopRunLoop() { if (runInterval) { clearInterval(runInterval); runInterval = null; } if (gpsWatchId !== null && 'geolocation' in navigator) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; } }
+  function setRunMode(mode) { state.run.mode = mode; const isSim = mode === 'sim'; document.getElementById('btnModeSim').className = isSim ? 'px-2.5 py-1 rounded-md text-xs font-bold bg-[#C8FF00] text-[#08090C]' : 'px-2.5 py-1 rounded-md text-xs font-bold text-[#94A3B8]'; document.getElementById('btnModeGps').className = !isSim ? 'px-2.5 py-1 rounded-md text-xs font-bold bg-[#4B2EFF] text-white' : 'px-2.5 py-1 rounded-md text-xs font-bold text-[#94A3B8]'; }
+  function openPostRunModal() { stopRunLoop(); const r = state.run; document.getElementById('postRunTitle').textContent = r.workout ? r.workout.title : 'Nhật ký'; document.getElementById('prDist').textContent = `${r.totalDistKm.toFixed(2)} km`; document.getElementById('prTime').textContent = fmtMmSs(r.elapsedSec); document.getElementById('prPace').textContent = fmtPace(r.totalDistKm > 0.05 ? r.elapsedSec / r.totalDistKm : r.currentPaceSec); document.getElementById('postRunModal').classList.remove('hidden'); }
+
+  let volumeChartInst = null;
+  function renderProfileSteppers() {
+    const p = state.profile, fields = [
+      { key: 'weightKg', label: 'Cân nặng (kg)', step: 0.5, fmt: v => v.toFixed(1) },
+      { key: 'lthr', label: 'LTHR (bpm)', step: 1, fmt: v => Math.round(v) },
+      { key: 'hrmax', label: 'HRmax (bpm)', step: 1, fmt: v => Math.round(v) },
+      { key: 'cadenceTarget', label: 'SPM', step: 2, fmt: v => Math.round(v) },
+      { key: 'test3kSec', label: 'Test 3K (s)', step: 5, fmt: v => fmtMmSs(v) }
+    ];
+    const c = document.getElementById('profileSteppers');
+    c.innerHTML = fields.map(f => `<div class="bg-[#08090C] rounded-xl p-2.5"><div class="text-xs text-[#94A3B8] mb-1">${f.label}</div><div class="flex items-center justify-between"><button type="button" data-key="${f.key}" data-delta="-${f.step}" class="prof-step w-7 h-7 rounded-lg bg-[#181A24] font-bold">-</button><span class="text-sm font-extrabold tabular-nums">${f.fmt(p[f.key])}</span><button type="button" data-key="${f.key}" data-delta="${f.step}" class="prof-step w-7 h-7 rounded-lg bg-[#181A24] font-bold">+</button></div></div>`).join('');
+    c.querySelectorAll('.prof-step').forEach(btn => btn.addEventListener('click', () => { state.profile[btn.dataset.key] = Math.max(10, +(state.profile[btn.dataset.key] + parseFloat(btn.dataset.delta)).toFixed(1)); renderProfileSteppers(); renderHrZones(); }));
+    document.getElementById('geminiKeyInput').value = state.geminiKey || '';
+  }
+  function renderHrZones() {
+    document.getElementById('lthrTitleVal').textContent = state.profile.lthr;
+    const v = 3000 / (state.profile.test3kSec / 60);
+    document.getElementById('vo2EstVal').textContent = Math.max(25, Math.min(75, (-4.60 + 0.182258 * v + 0.000104 * v * v) / 0.92)).toFixed(1);
+    document.getElementById('hrZonesTable').innerHTML = getZones(state.profile.lthr).map(z => `<div class="flex items-center justify-between bg-[#08090C] rounded-xl px-3 py-2 text-xs">
+      <div class="flex items-center gap-2"><span class="w-6 h-6 rounded-md flex items-center justify-center font-display font-black text-[#08090C]" style="background:${z.color}">Z${z.z}</span><span class="font-bold text-white">${z.name}</span></div>
+      <div class="text-right tabular-nums"><div class="font-bold text-white">${z.min === 0 ? `< ${z.max}` : (z.max >= 220 ? `>= ${z.min}` : `${z.min}–${z.max}`)}</div><div class="text-[#94A3B8]">${z.pace}</div></div>
+    </div>`).join('');
+  }
+  function renderVolumeChart() {
+    const schedule = buildSchedule(state.goalId), ctx = document.getElementById('volumeChart').getContext('2d');
+    if (volumeChartInst) volumeChartInst.destroy();
+    volumeChartInst = new Chart(ctx, {
+      type: 'bar',
+      data: { labels: schedule.map(w => `T${w.week}`), datasets: [{ data: schedule.map(w => +w.workouts.reduce((a, b) => a + b.totalKm, 0).toFixed(1)), backgroundColor: schedule.map(w => w.week === 7 ? '#4B2EFF' : (w.week === 9 ? '#FF3B5C' : '#C8FF00')), borderRadius: 4 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#94A3B8' }, grid: { display: false } }, y: { ticks: { color: '#94A3B8' }, grid: { color: '#1E202B' } } } }
+    });
+  }
+  function renderRunHistory() {
+    const list = document.getElementById('runHistoryList');
+    if (!state.history.length) { list.innerHTML = `<div class="text-xs text-[#94A3B8] text-center py-3">Chưa có dữ liệu buổi chạy.</div>`; return; }
+    list.innerHTML = state.history.map(i => `<div class="bg-[#08090C] rounded-xl p-3 space-y-1 text-xs">
+      <div class="flex justify-between font-bold"><span class="text-white">${i.title}</span><span class="text-[#C8FF00] tabular-nums">${i.distKm} km · ${i.pace} · RPE ${i.rpe}</span></div>
+      <div class="text-[#CBD5E1]"><b class="text-[#C8FF00]">Tốt:</b> ${i.good || '--'} · <b class="text-[#FFB020]">Chưa được:</b> ${i.bad || '--'} · <b class="text-[#9D85FF]">Sửa:</b> ${i.fix || '--'}</div>
+    </div>`).join('');
+  }
+  function renderStatsTab() { renderProfileSteppers(); renderHrZones(); renderVolumeChart(); renderRunHistory(); }
+
+  document.querySelectorAll('.nav-btn').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+  document.getElementById('btnAudioQuick').addEventListener('click', () => { state.audioEnabled = !state.audioEnabled; document.getElementById('audioDot').className = `w-2 h-2 rounded-full ${state.audioEnabled ? 'bg-[#C8FF00]' : 'bg-[#64748B]'}`; document.getElementById('audioQuickLabel').textContent = state.audioEnabled ? 'Audio Bật' : 'Audio Tắt'; if (state.audioEnabled) playEarcon(); });
+  document.getElementById('btnToggleAdaptive').addEventListener('click', () => { document.getElementById('adaptiveDrawer').classList.toggle('hidden'); document.getElementById('iconAdaptiveChev').classList.toggle('rotate-180'); });
+  document.getElementById('btnToggleSimDrawer').addEventListener('click', () => { const el = document.getElementById('simControlsCard'); el.classList.toggle('hidden'); document.getElementById('btnToggleSimDrawer').textContent = el.classList.contains('hidden') ? 'SIM ▾' : 'SIM ▴'; });
+  document.querySelectorAll('.quick-q').forEach(b => b.addEventListener('click', () => { document.getElementById('aiQuestionInput').value = b.textContent; askAiPt(b.textContent); }));
+  document.getElementById('btnAskAi').addEventListener('click', () => askAiPt(document.getElementById('aiQuestionInput').value));
+
+  document.getElementById('btnOpenCheckpoint').addEventListener('click', () => document.getElementById('checkpointModal').classList.remove('hidden'));
+  document.getElementById('btnCloseCheckpoint').addEventListener('click', () => document.getElementById('checkpointModal').classList.add('hidden'));
+  document.getElementById('cpTabW4').addEventListener('click', () => { state.cpMode = 'w4'; document.getElementById('cpTabW4').className = 'flex-1 py-2 rounded-xl bg-[#C8FF00] text-[#08090C] text-xs font-extrabold'; document.getElementById('cpTabW7').className = 'flex-1 py-2 rounded-xl bg-[#181A24] text-[#CBD5E1] text-xs font-bold'; document.getElementById('cpTimeLabel').textContent = 'Thành tích Test 3 km (mm:ss)'; document.getElementById('cpTimeInput').value = '18:25'; });
+  document.getElementById('cpTabW7').addEventListener('click', () => { state.cpMode = 'w7'; document.getElementById('cpTabW7').className = 'flex-1 py-2 rounded-xl bg-[#C8FF00] text-[#08090C] text-xs font-extrabold'; document.getElementById('cpTabW4').className = 'flex-1 py-2 rounded-xl bg-[#181A24] text-[#CBD5E1] text-xs font-bold'; document.getElementById('cpTimeLabel').textContent = 'Pace TB 2 km Race Pace (mm:ss)'; document.getElementById('cpTimeInput').value = '5:58'; });
+  document.getElementById('btnEvalCheckpoint').addEventListener('click', evaluateCheckpoint);
+
+  document.getElementById('btnConnectBle').addEventListener('click', async () => {
+    const txt = document.getElementById('bleBtnText');
+    if (state.run.bleConnected && state.run.bleDevice) { try { state.run.bleDevice.gatt.disconnect(); } catch (e) {} state.run.bleConnected = false; state.run.bleDevice = null; txt.textContent = 'BLE'; return; }
+    if (!navigator.bluetooth) { showToast('Trình duyệt không hỗ trợ Web Bluetooth (dùng Chrome HTTPS hoặc .ipa).'); return; }
+    try {
+      txt.textContent = '...';
+      const d = await navigator.bluetooth.requestDevice({ filters: [{ services: ['heart_rate'] }] });
+      const s = await d.gatt.connect(), sv = await s.getPrimaryService('heart_rate'), ch = await sv.getCharacteristic('heart_rate_measurement');
+      await ch.startNotifications();
+      ch.addEventListener('characteristicvaluechanged', ev => { const v = ev.target.value, bpm = (v.getUint8(0) & 0x01) ? v.getUint16(1, true) : v.getUint8(1); if (bpm > 30 && bpm < 230) { state.run.currentHr = bpm; renderHud(); } });
+      state.run.bleDevice = d; state.run.bleConnected = true; txt.textContent = 'LIVE'; showToast(`Đã kết nối BLE: ${d.name || 'HR'}`);
+    } catch (e) { txt.textContent = 'BLE'; showToast('Không thể kết nối BLE.'); }
+  });
+
+  document.getElementById('btnModeSim').addEventListener('click', () => setRunMode('sim'));
+  document.getElementById('btnModeGps').addEventListener('click', () => setRunMode('gps'));
+  document.getElementById('btnTestCoach').addEventListener('click', () => speakCoach('Đúng nhịp, Zone 2, Pace tám ba mươi, Tim một bốn hai, giữ đều chân'));
+  document.getElementById('btnToggleMetronome').addEventListener('click', () => { state.metronomeActive = !state.metronomeActive; updateMetronomeTimer(); renderHud(); });
+  document.getElementById('btnStartPause').addEventListener('click', () => {
+    ensureAudioCtx(); const r = state.run;
+    if (r.status === 'running') { r.status = 'paused'; speakCoach('Đã tạm dừng.'); }
+    else { if (r.status === 'idle' || r.status === 'completed') { if (r.status === 'completed') { r.segIdx = 0; r.segDistKm = 0; r.totalDistKm = 0; r.elapsedSec = 0; } speakCoach(r.workout.segments[0].cue); } else speakCoach('Tiếp tục chạy.'); r.status = 'running'; r.lastCoachMs = Date.now(); startRunLoop(); }
+    renderHud();
+  });
+  document.getElementById('btnNextSeg').addEventListener('click', () => {
+    const r = state.run; if (!r.workout) return;
+    if (r.segIdx < r.workout.segments.length - 1) { r.segIdx += 1; r.segDistKm = 0; const s = r.workout.segments[r.segIdx]; r.simPaceSec = Math.round((s.paceMin + s.paceMax) / 2); document.getElementById('simPaceSlider').value = r.simPaceSec; document.getElementById('simPaceDisplay').textContent = fmtPace(r.simPaceSec) + '/km'; speakCoach(s.cue); renderHud(); }
+  });
+  document.getElementById('btnPainReport').addEventListener('click', () => { state.run.status = 'recovery'; speakCoach('Đi bộ hồi phục bảo vệ chân.'); startRunLoop(); renderHud(); });
+  document.getElementById('btnEndRecovery').addEventListener('click', () => { state.run.status = 'running'; speakCoach('Tiếp tục chạy nhẹ.'); renderHud(); });
+
+  let holdTimer = null, holdStart = 0; const stopBtn = document.getElementById('btnStopHold'), stopFill = document.getElementById('stopHoldFill');
+  function startHold() { holdStart = Date.now(); clearInterval(holdTimer); holdTimer = setInterval(() => { const p = Math.min(100, ((Date.now() - holdStart) / 1200) * 100); stopFill.style.width = `${p}%`; if (p >= 100) { clearInterval(holdTimer); stopFill.style.width = '0%'; state.run.status = 'completed'; speakCoach('Đã dừng.'); openPostRunModal(); } }, 40); }
+  function cancelHold() { clearInterval(holdTimer); stopFill.style.width = '0%'; }
+  stopBtn.addEventListener('mousedown', startHold); stopBtn.addEventListener('touchstart', startHold, { passive: true }); stopBtn.addEventListener('mouseup', cancelHold); stopBtn.addEventListener('mouseleave', cancelHold); stopBtn.addEventListener('touchend', cancelHold);
+
+  document.getElementById('simPaceSlider').addEventListener('input', e => { state.run.simPaceSec = parseInt(e.target.value, 10); state.run.currentPaceSec = state.run.simPaceSec; document.getElementById('simPaceDisplay').textContent = fmtPace(state.run.simPaceSec) + '/km'; renderHud(); });
+  document.getElementById('simHrSlider').addEventListener('input', e => { state.run.simHr = parseInt(e.target.value, 10); state.run.currentHr = state.run.simHr; document.getElementById('simHrDisplay').textContent = `${state.run.simHr} bpm`; renderHud(); });
+  document.querySelectorAll('.sim-speed').forEach(b => b.addEventListener('click', () => { state.run.simSpeed = parseInt(b.dataset.speed, 10); document.querySelectorAll('.sim-speed').forEach(x => { x.className = `sim-speed px-2 py-0.5 rounded text-xs font-bold ${x === b ? 'bg-[#C8FF00] text-[#08090C]' : 'bg-[#181A24] text-[#CBD5E1]'}`; }); }));
+  document.querySelectorAll('.sim-preset').forEach(b => b.addEventListener('click', () => {
+    const seg = state.run.workout.segments[state.run.segIdx], p = b.dataset.preset;
+    if (p === 'target') { state.run.simPaceSec = Math.round((seg.paceMin + seg.paceMax) / 2); state.run.simHr = Math.round(state.profile.lthr * 0.86); }
+    else if (p === 'fast') { state.run.simPaceSec = Math.max(270, seg.paceMin - 35); state.run.simHr = Math.round(state.profile.lthr * 0.96); }
+    else if (p === 'slow') { state.run.simPaceSec = Math.min(600, seg.paceMax + 40); state.run.simHr = Math.round(state.profile.lthr * 0.80); }
+    else if (p === 'danger') { state.run.simHr = 183; }
+    state.run.currentPaceSec = state.run.simPaceSec; state.run.currentHr = state.run.simHr;
+    document.getElementById('simPaceSlider').value = state.run.simPaceSec; document.getElementById('simPaceDisplay').textContent = fmtPace(state.run.simPaceSec) + '/km';
+    document.getElementById('simHrSlider').value = state.run.simHr; document.getElementById('simHrDisplay').textContent = `${state.run.simHr} bpm`; renderHud();
+  }));
+
+  document.getElementById('noteRpe').addEventListener('input', e => { document.getElementById('rpeDisplay').textContent = `${e.target.value} / 10`; });
+  document.getElementById('btnClosePostRun').addEventListener('click', () => document.getElementById('postRunModal').classList.add('hidden'));
+  document.getElementById('btnAddManualNote').addEventListener('click', () => { document.getElementById('postRunTitle').textContent = 'Ghi nhật ký'; document.getElementById('prDist').textContent = `${state.run.totalDistKm.toFixed(2)} km`; document.getElementById('prTime').textContent = fmtMmSs(state.run.elapsedSec); document.getElementById('prPace').textContent = fmtPace(state.run.currentPaceSec); document.getElementById('postRunModal').classList.remove('hidden'); });
+  document.getElementById('btnSaveRunNote').addEventListener('click', () => {
+    state.history.unshift({ id: Date.now(), title: document.getElementById('postRunTitle').textContent, distKm: state.run.totalDistKm.toFixed(2), pace: document.getElementById('prPace').textContent, good: document.getElementById('noteGood').value.trim(), bad: document.getElementById('noteBad').value.trim(), fix: document.getElementById('noteFix').value.trim(), rpe: document.getElementById('noteRpe').value });
+    saveStorage('sub60_history', state.history); document.getElementById('postRunModal').classList.add('hidden');
+    document.getElementById('noteGood').value = ''; document.getElementById('noteBad').value = ''; document.getElementById('noteFix').value = ''; switchTab('stats'); showToast('Đã lưu nhật ký!');
+  });
+  document.getElementById('btnSaveProfile').addEventListener('click', () => { saveStorage('sub60_profile', state.profile); state.geminiKey = document.getElementById('geminiKeyInput').value.trim(); saveStorage('sub60_gemini_key', state.geminiKey); renderPlanTab(); renderStatsTab(); showToast('Đã lưu!'); });
+
+  // Subtle 3D Parallax Tilt on Poster Card
+  const posterCard = document.getElementById('posterCard');
+  const posterLayer = document.getElementById('posterTitleLayer');
+  if (posterCard) {
+    function applyTilt(cx, cy) {
+      const r = posterCard.getBoundingClientRect();
+      const dx = ((cx - r.left) / r.width - 0.5) * 2;
+      const dy = ((cy - r.top) / r.height - 0.5) * 2;
+      posterCard.style.transform = `perspective(520px) rotateY(${(dx * 5).toFixed(2)}deg) rotateX(${(-dy * 5).toFixed(2)}deg)`;
+      if (posterLayer) posterLayer.style.transform = `translate3d(${(dx * 4).toFixed(1)}px, ${(dy * 3).toFixed(1)}px, 0)`;
+    }
+    function resetTilt() {
+      posterCard.style.transform = '';
+      if (posterLayer) posterLayer.style.transform = '';
+    }
+    posterCard.addEventListener('mousemove', e => applyTilt(e.clientX, e.clientY));
+    posterCard.addEventListener('touchmove', e => { if (e.touches[0]) applyTilt(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
+    posterCard.addEventListener('mouseleave', resetTilt);
+    posterCard.addEventListener('touchend', resetTilt);
+  }
+
+  renderPlanTab(); state.run.workout = buildSchedule(state.goalId)[0].workouts[0]; renderHud();
+})();
+</script>
+</body>
+</html>

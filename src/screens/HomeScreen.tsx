@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,10 @@ import {
   TextInput,
   Switch,
   ActivityIndicator,
+  Image,
+  Animated,
+  Easing,
+  Dimensions,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import trainingPlanData from '../data/trainingPlan.json';
@@ -48,6 +52,195 @@ interface HomeScreenProps {
   onSelectWorkout: (workout: WorkoutPlan) => void;
 }
 
+// Zone color mapping
+const ZONE_COLORS: Record<number, string> = {
+  1: '#94A3B8',
+  2: '#9D85FF',
+  3: '#C8FF00',
+  4: '#FFB020',
+  5: '#FF3B5C',
+};
+
+// Workout type -> icon category
+function getWorkoutIconType(type: string): 'track' | 'swirl' | 'grid' {
+  const t = (type || '').toLowerCase();
+  if (t === 'easy' || t === 'long' || t === 'recovery') return 'track';
+  if (t === 'tempo' || t === 'interval' || t === 'strides') return 'swirl';
+  return 'grid';
+}
+
+// ─── Techwear Chevron Bar (pure View) ──────────────────────────────────────
+function TechChevronBar() {
+  return (
+    <View style={techStyles.bar}>
+      <View style={techStyles.left}>
+        {/* Lime slant parallelograms (5 pieces) */}
+        {[0, 1, 2, 3, 4].map((i) => (
+          <View
+            key={i}
+            style={[
+              techStyles.limeSlant,
+              { marginLeft: i === 0 ? 0 : 2 },
+            ]}
+          />
+        ))}
+        <Text style={techStyles.label}>WORKOUT STAGES</Text>
+      </View>
+      {/* Purple chevrons (6 pieces) */}
+      <View style={techStyles.right}>
+        {[0, 1, 2, 3, 4, 5].map((i) => (
+          <View key={i} style={[techStyles.purpleChev, { marginLeft: i === 0 ? 0 : 1 }]} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+const techStyles = StyleSheet.create({
+  bar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#111218',
+    borderWidth: 1,
+    borderColor: '#252838',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    marginBottom: 14,
+  },
+  left: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  right: { flexDirection: 'row', alignItems: 'center' },
+  limeSlant: {
+    width: 6,
+    height: 12,
+    backgroundColor: '#C8FF00',
+    transform: [{ skewX: '-15deg' }],
+  },
+  purpleChev: {
+    width: 5,
+    height: 12,
+    backgroundColor: '#9D85FF',
+    transform: [{ skewX: '-10deg' }],
+  },
+  label: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+  },
+});
+
+// ─── Workout Icon ───────────────────────────────────────────────────────────
+function WorkoutIcon({ type }: { type: 'track' | 'swirl' | 'grid' }) {
+  if (type === 'track') {
+    // Oval track: ellipse-like via borderRadius
+    return (
+      <View style={iconStyles.trackOuter}>
+        <View style={iconStyles.trackInner} />
+      </View>
+    );
+  }
+  if (type === 'swirl') {
+    // Kinetic swirl: stacked rotated bars
+    return (
+      <View style={iconStyles.swirlWrap}>
+        {[0, 60, 120].map((deg, i) => (
+          <View
+            key={i}
+            style={[
+              iconStyles.swirlBar,
+              { transform: [{ rotate: `${deg}deg` }], opacity: 1 - i * 0.2 },
+            ]}
+          />
+        ))}
+      </View>
+    );
+  }
+  // Checkered grid
+  return (
+    <View style={iconStyles.gridWrap}>
+      {[0, 1, 2, 3].map((i) => (
+        <View
+          key={i}
+          style={[
+            iconStyles.gridCell,
+            { backgroundColor: i % 2 === 0 ? '#08090C' : '#9D85FF' },
+          ]}
+        />
+      ))}
+    </View>
+  );
+}
+
+const iconStyles = StyleSheet.create({
+  trackOuter: {
+    width: 32,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2.5,
+    borderColor: '#9D85FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trackInner: {
+    width: 16,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: '#9D85FF',
+  },
+  swirlWrap: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+  swirlBar: {
+    position: 'absolute',
+    width: 28,
+    height: 3,
+    backgroundColor: '#4B2EFF',
+    borderRadius: 2,
+  },
+  gridWrap: {
+    width: 24,
+    height: 24,
+    flexWrap: 'wrap',
+    flexDirection: 'row',
+  },
+  gridCell: { width: 12, height: 12 },
+});
+
+// ─── Mini Zone Timeline Bar ─────────────────────────────────────────────────
+function MiniZoneBar({ segments }: { segments: any[] }) {
+  const total = segments.reduce((s: number, seg: any) => s + (seg.distKm || seg.totalDistanceKm || 0), 0);
+  if (total === 0) return null;
+  return (
+    <View style={zoneBarStyles.container}>
+      {segments.map((seg: any, i: number) => {
+        const dist = seg.distKm || seg.totalDistanceKm || 0;
+        const flex = dist / total;
+        const zone = seg.zone || seg.hrZone || 2;
+        return (
+          <View
+            key={seg.id || i}
+            style={[zoneBarStyles.segment, { flex, backgroundColor: ZONE_COLORS[zone] || '#9D85FF' }]}
+          />
+        );
+      })}
+    </View>
+  );
+}
+const zoneBarStyles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    height: 4,
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginBottom: 10,
+    marginTop: 4,
+  },
+  segment: { height: 4 },
+});
+
+// ─── HOMESCREEN ─────────────────────────────────────────────────────────────
 export const HomeScreen: React.FC<HomeScreenProps> = ({
   bleStatus,
   heartRate,
@@ -64,6 +257,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const [selectedGoalId, setSelectedGoalId] = useState<GoalId>('sub60');
   const [includeSunday, setIncludeSunday] = useState<boolean>(true);
   const [isEditProfileVisible, setIsEditProfileVisible] = useState<boolean>(false);
+  const [adaptiveOpen, setAdaptiveOpen] = useState<boolean>(false);
 
   // Form edit profile state
   const [editLtPaceStr, setEditLtPaceStr] = useState('7:31');
@@ -84,6 +278,74 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const [aiQuestion, setAiQuestion] = useState<string>('');
   const [aiAnswer, setAiAnswer] = useState<string | null>(null);
   const [isAiThinking, setIsAiThinking] = useState<boolean>(false);
+
+  // Expanded workout segments state
+  const [expandedWorkouts, setExpandedWorkouts] = useState<Set<string>>(new Set());
+
+  // Animated values
+  const kenBurnsAnim = useRef(new Animated.Value(1)).current;
+  const chevPulse = useRef(new Animated.Value(0)).current;
+  const bounceAnim = useRef(new Animated.Value(1)).current;
+
+  // Ken Burns: scale 1 → 1.13 over 12 seconds, loop back
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(kenBurnsAnim, {
+          toValue: 1.13,
+          duration: 12000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(kenBurnsAnim, {
+          toValue: 1,
+          duration: 12000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, [kenBurnsAnim]);
+
+  // Chevron pulse animation
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(chevPulse, {
+          toValue: 1,
+          duration: 600,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(chevPulse, {
+          toValue: 0,
+          duration: 600,
+          easing: Easing.in(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, [chevPulse]);
+
+  // Bounce animation for NEXT run button
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(bounceAnim, {
+          toValue: 1.08,
+          duration: 500,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(bounceAnim, {
+          toValue: 1,
+          duration: 500,
+          easing: Easing.in(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, [bounceAnim]);
 
   const { weeks } = trainingPlanData;
   const activeWeek = weeks[selectedWeekIndex] || weeks[0];
@@ -230,28 +492,74 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     return true;
   });
 
+  // Compute weekTotalKm
+  const weekTotalKm = activeWeek.workouts
+    .filter((w: any) => !w.isOptional)
+    .reduce((acc: number, w: any) => acc + (w.totalDistanceKm || 0), 0);
+
+  // Chevron opacity interpolation
+  const chev1Opacity = chevPulse.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0.4, 1] });
+  const chev2Opacity = chevPulse.interpolate({ inputRange: [0, 0.33, 0.66, 1], outputRange: [0.4, 1, 0.4, 0.4] });
+  const chev3Opacity = chevPulse.interpolate({ inputRange: [0, 0.66, 1], outputRange: [0.4, 1, 0.4] });
+
+  const toggleExpandWorkout = (id: string) => {
+    setExpandedWorkouts((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
 
-        {/* ── CONTEST POSTER BENTO: Golden Ratio 1.618:1 ── */}
+        {/* ══════════════════════════════════════════════════════════
+            POSTER BENTO — Golden Ratio 1.618:1
+        ══════════════════════════════════════════════════════════ */}
         <View style={styles.posterBento}>
+
           {/* Left Poster Card (61.8%) */}
           <View style={styles.posterCard}>
+            {/* Lime vertical ribbon — CHALLENGE marquee */}
             <View style={styles.posterRibbonLime}>
               <Text style={styles.posterRibbonText}>CHALLENGE</Text>
               <Text style={styles.posterRibbonText}>CHALLENGE</Text>
             </View>
+
+            {/* Purple vertical ribbon — VER 1.0 // 10K */}
             <View style={styles.posterRibbonPurple}>
               <Text style={styles.posterRibbonPurpleText}>VER 1.0 // 10K</Text>
             </View>
+
+            {/* Main visual area */}
             <View style={styles.posterCardMain}>
+              {/* Hero track image with Ken Burns */}
+              <Animated.Image
+                source={require('../../handoff_extracted/assets/hero-track-banner.jpg')}
+                style={[
+                  styles.posterHeroImg,
+                  { transform: [{ scale: kenBurnsAnim }] },
+                ]}
+                resizeMode="cover"
+              />
+              {/* Gradient overlay (simulated via View with gradient-like opacity) */}
+              <View style={styles.posterGradientOverlay} />
+
+              {/* Top row: SUB60 badge + pulsing chevrons */}
               <View style={styles.posterCardTop}>
                 <View style={styles.posterGoalBadge}>
                   <Text style={styles.posterGoalBadgeText}>{currentGoal.name.toUpperCase()}</Text>
                 </View>
-                <Text style={styles.posterChevs}>❯❯❯</Text>
+                <View style={styles.posterChevRow}>
+                  <Animated.Text style={[styles.posterChev, { opacity: chev1Opacity }]}>❯</Animated.Text>
+                  <Animated.Text style={[styles.posterChev, { opacity: chev2Opacity }]}>❯</Animated.Text>
+                  <Animated.Text style={[styles.posterChev, { opacity: chev3Opacity }]}>❯</Animated.Text>
+                </View>
               </View>
+
+              {/* Title layer */}
               <View style={styles.posterTitleLayer}>
                 <Text style={styles.posterBigTitle}>STARTING</Text>
                 <View style={styles.posterSubRow}>
@@ -278,7 +586,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </View>
         </View>
 
-        {/* ── GOAL TIER SELECTOR ── */}
+        {/* ══════════════════════════════════════════════════════════
+            GOAL TIER 3-PILL SELECTOR
+        ══════════════════════════════════════════════════════════ */}
         <View style={styles.goalTierGrid}>
           {(['sub60', 'sub65', 'under70'] as GoalId[]).map((gId) => {
             const tier = GOAL_TIERS[gId];
@@ -289,7 +599,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 style={[styles.tierPill, isSelected && styles.tierPillSelected]}
                 onPress={() => handleSelectGoal(gId)}
               >
-                <Text style={[styles.tierPillTitle, isSelected && styles.tierPillTitleSelected]}>{tier.name}</Text>
+                <Text style={[styles.tierPillTitle, isSelected && styles.tierPillTitleSelected]}>
+                  {tier.name}
+                </Text>
                 <Text style={[styles.tierPillPace, isSelected && styles.tierPillPaceSelected]}>
                   {formatPaceMinutesSeconds(tier.targetPaceMinSec)}
                 </Text>
@@ -298,7 +610,293 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           })}
         </View>
 
-        {/* ── BLE + LTHR BENTO ── */}
+        {/* ══════════════════════════════════════════════════════════
+            WEEK SELECTOR
+        ══════════════════════════════════════════════════════════ */}
+        <View style={styles.weekSelectorSection}>
+          <View style={styles.weekHeaderRow}>
+            <Text style={styles.weekSectionTitle}>📅 Lịch tập 9 tuần</Text>
+            <Text style={styles.weekTotalKm}>{weekTotalKm.toFixed(1)} km</Text>
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.weekPillsRow}
+          >
+            {weeks.map((week: any, idx: number) => {
+              const isSelected = idx === selectedWeekIndex;
+              return (
+                <TouchableOpacity
+                  key={week.weekNumber}
+                  style={[styles.weekPill, isSelected && styles.weekPillActive]}
+                  onPress={() => { Haptics.selectionAsync(); setSelectedWeekIndex(idx); }}
+                >
+                  <Text style={[styles.weekPillNum, isSelected && styles.weekPillTextDark]}>
+                    T{week.weekNumber}
+                  </Text>
+                  <Text style={[styles.weekPillDate, isSelected && styles.weekPillDateDark]}>
+                    {week.dateRange.split(' - ')[0].slice(0, 5)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          <Text style={styles.weekDateRange}>{activeWeek.dateRange}</Text>
+
+          {/* Sunday toggle row */}
+          <View style={styles.sundayToggleRow}>
+            <Text style={styles.sundayToggleLabel}>Bao gồm Chủ Nhật (tùy chọn)</Text>
+            <Switch
+              value={includeSunday}
+              onValueChange={(val) => { Haptics.selectionAsync(); setIncludeSunday(val); }}
+              trackColor={{ false: '#252838', true: '#C8FF00' }}
+              thumbColor={includeSunday ? '#08090C' : '#64748B'}
+              style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+            />
+          </View>
+        </View>
+
+        {/* ══════════════════════════════════════════════════════════
+            TECHWEAR SVG DIVIDER BAR
+        ══════════════════════════════════════════════════════════ */}
+        <TechChevronBar />
+
+        {/* ══════════════════════════════════════════════════════════
+            WORKOUT CARDS
+        ══════════════════════════════════════════════════════════ */}
+        {visibleWorkouts.map((workout: any, cardIdx: number) => {
+          const isSunday = Boolean(workout.isOptional || workout.dayOfWeek?.toLowerCase().includes('nhật'));
+          const isCheckpoint = workout.type === 'Checkpoint' || workout.type === 'Race';
+          const isNext = cardIdx === 0 && selectedWeekIndex === 0;
+          const isDone = false; // future: check stored completed runs
+          const iconType = getWorkoutIconType(workout.type || '');
+          const isExpanded = expandedWorkouts.has(workout.id);
+          const displayedSegments = isExpanded ? workout.segments : workout.segments.slice(0, 3);
+          const hasMore = workout.segments.length > 3;
+
+          return (
+            <View
+              key={workout.id}
+              style={[
+                styles.workoutCard,
+                isNext && styles.workoutCardNext,
+                isCheckpoint && styles.workoutCardCheckpoint,
+                isDone && styles.workoutCardDone,
+              ]}
+            >
+              {/* Card top: stage badge + NEXT/DONE badge + icon */}
+              <View style={styles.workoutCardTopRow}>
+                <View style={styles.workoutBadgesLeft}>
+                  {/* STAGE badge */}
+                  <View style={styles.stageBadge}>
+                    <Text style={styles.stageBadgeText}>
+                      STAGE {String(cardIdx + 1).padStart(2, '0')}
+                    </Text>
+                  </View>
+                  {isDone ? (
+                    <View style={styles.doneBadge}><Text style={styles.doneBadgeText}>✓ HOÀN THÀNH</Text></View>
+                  ) : isNext ? (
+                    <View style={styles.nextBadge}><Text style={styles.nextBadgeText}>TIẾP THEO</Text></View>
+                  ) : null}
+                </View>
+                <View style={styles.workoutIconBox}>
+                  <WorkoutIcon type={iconType} />
+                </View>
+              </View>
+
+              {/* Day chip + KM badge */}
+              <View style={styles.workoutMetaRow}>
+                <View style={[styles.dayChip, isSunday && styles.dayChipOptional, isCheckpoint && styles.dayChipCheckpoint]}>
+                  <Text style={[styles.dayChipText, isSunday && styles.dayChipTextOptional, isCheckpoint && styles.dayChipTextCheckpoint]}>
+                    {isSunday ? 'CN • TÙY CHỌN' : (workout.dayOfWeek || '').toUpperCase()}
+                  </Text>
+                </View>
+                <View style={[styles.kmBadge, isCheckpoint && styles.kmBadgePurple]}>
+                  <Text style={[styles.kmBadgeText, isCheckpoint && styles.kmBadgeTextPurple]}>
+                    {workout.totalDistanceKm} KM
+                  </Text>
+                </View>
+              </View>
+
+              {/* Workout title */}
+              <Text style={[styles.workoutTitle, isCheckpoint && styles.workoutTitleCheckpoint]}>
+                {workout.title}
+              </Text>
+
+              {/* Mini zone timeline bar */}
+              <MiniZoneBar segments={workout.segments} />
+
+              {/* Segments */}
+              <View style={styles.segmentsBox}>
+                {displayedSegments.map((seg: any) => {
+                  const resolved = resolvePaceRange(seg as PaceSegmentLike, profile, currentGoal);
+                  return (
+                    <View key={seg.id} style={styles.segRow}>
+                      <Text style={styles.segName} numberOfLines={1}>{seg.name}</Text>
+                      <Text style={styles.segTarget}>{resolved.displayText}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+
+              {/* Bottom row: N chặng toggle + RUN button */}
+              <View style={styles.workoutBottomRow}>
+                {hasMore ? (
+                  <TouchableOpacity
+                    style={styles.expandBtn}
+                    onPress={() => toggleExpandWorkout(workout.id)}
+                  >
+                    <Text style={styles.expandBtnText}>
+                      {isExpanded
+                        ? `Ẩn bớt ▴`
+                        : `${workout.segments.length} chặng ▾`}
+                    </Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.expandBtnPlaceholder} />
+                )}
+
+                {isNext ? (
+                  <Animated.View style={{ transform: [{ scale: bounceAnim }] }}>
+                    <TouchableOpacity
+                      style={styles.runBtnNext}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                        onSelectWorkout(workout as unknown as WorkoutPlan);
+                      }}
+                    >
+                      <Text style={styles.runBtnNextText}>▶ CHẠY</Text>
+                    </TouchableOpacity>
+                  </Animated.View>
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.runBtn, isCheckpoint && styles.runBtnCheckpoint]}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                      onSelectWorkout(workout as unknown as WorkoutPlan);
+                    }}
+                  >
+                    <Text style={[styles.runBtnText, isCheckpoint && styles.runBtnTextCheckpoint]}>
+                      {isCheckpoint ? '▶ TEST' : '▶ CHẠY'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          );
+        })}
+
+        {/* ══════════════════════════════════════════════════════════
+            ADAPTIVE AI DRAWER
+        ══════════════════════════════════════════════════════════ */}
+        <View style={styles.adaptiveSection}>
+          <TouchableOpacity
+            style={styles.adaptiveHeader}
+            onPress={() => setAdaptiveOpen(!adaptiveOpen)}
+          >
+            <View style={styles.adaptiveHeaderLeft}>
+              {/* Lightning icon (⚡) */}
+              <Text style={styles.adaptiveLightning}>⚡</Text>
+              <Text style={styles.adaptiveHeaderTitle}>Tùy chỉnh theo thể trạng</Text>
+            </View>
+            <Text style={styles.adaptiveChev}>{adaptiveOpen ? '▴' : '▾'}</Text>
+          </TouchableOpacity>
+
+          {adaptiveOpen && (
+            <View style={styles.adaptiveDrawer}>
+              {/* Feeling pills */}
+              <View style={styles.feelingPillsRow}>
+                {[
+                  { id: 'FRESH_READY', label: '⚡ Sung sức' },
+                  { id: 'NORMAL', label: '😊 Bình thường' },
+                  { id: 'FATIGUED_SORE', label: '😮‍💨 Chân mỏi' },
+                  { id: 'LIMITED_TIME', label: '⏱️ Gấp 20p' },
+                ].map((f) => {
+                  const isSelected = selectedFeeling === f.id;
+                  return (
+                    <TouchableOpacity
+                      key={f.id}
+                      style={[styles.feelingPill, isSelected && styles.feelingPillActive]}
+                      onPress={() => handleSelectFeeling(f.id as RunnerFeeling)}
+                    >
+                      <Text style={[styles.feelingPillText, isSelected && styles.textDark]}>{f.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Adaptive workout card */}
+              {adaptiveRec ? (
+                <View style={styles.adaptiveCard}>
+                  <View style={styles.adaptiveCardTop}>
+                    <View style={styles.recTypeBadge}>
+                      <Text style={styles.recTypeBadgeText}>{adaptiveRec.recommendedType}</Text>
+                    </View>
+                    <Text style={styles.adaptiveDistText}>{adaptiveRec.workout.totalDistanceKm} KM</Text>
+                  </View>
+                  <Text style={styles.adaptiveWorkoutTitle}>{adaptiveRec.workout.title}</Text>
+                  <Text style={styles.adaptiveReasonText}>{adaptiveRec.reasoning}</Text>
+                  <View style={styles.aiQuoteBox}>
+                    <Text style={styles.aiQuoteIcon}>💡</Text>
+                    <Text style={styles.aiQuoteText}>{adaptiveRec.aiSuggestedQuote}</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.ctaLimeBtn}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                      onSelectWorkout(adaptiveRec.workout);
+                    }}
+                  >
+                    <Text style={styles.ctaLimeBtnText}>CHẠY BÀI NÀY NGAY VỚI AUDIO COACH</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+
+              {/* AI Q&A */}
+              <View style={styles.aiQaCard}>
+                <View style={styles.aiQaHeader}>
+                  <Text style={styles.aiQaTitle}>💬 HỎI AI HUẤN LUYỆN VIÊN</Text>
+                  <Text style={styles.aiQaProviderTag}>{geminiApiKey.trim() ? 'GEMINI LIVE' : 'OFFLINE AI PT'}</Text>
+                </View>
+                <View style={styles.aiQuickQRow}>
+                  {['Mỏi bắp chuối?', 'Sau T3 cầu lông?', 'Uống nước nhịp thở?'].map(q => (
+                    <TouchableOpacity key={q} style={styles.quickQChip} onPress={() => setAiQuestion(q)}>
+                      <Text style={styles.quickQText}>{q}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <View style={styles.aiInputRow}>
+                  <TextInput
+                    style={styles.aiTextInput}
+                    value={aiQuestion}
+                    onChangeText={setAiQuestion}
+                    placeholder="Hỏi PT..."
+                    placeholderTextColor="#64748B"
+                  />
+                  <TouchableOpacity style={styles.aiSendBtn} onPress={handleAskAiCoach} disabled={isAiThinking}>
+                    {isAiThinking ? (
+                      <ActivityIndicator size="small" color="#08090C" />
+                    ) : (
+                      <Text style={styles.aiSendBtnText}>Hỏi</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+                {aiAnswer ? (
+                  <View style={styles.aiAnswerBox}>
+                    <Text style={styles.aiAnswerTitle}>🤖 LỜI KHUYÊN TỪ AI PT:</Text>
+                    <Text style={styles.aiAnswerText}>{aiAnswer}</Text>
+                  </View>
+                ) : null}
+              </View>
+            </View>
+          )}
+        </View>
+
+        {/* ══════════════════════════════════════════════════════════
+            BLE + LTHR BENTO (preserved functionality)
+        ══════════════════════════════════════════════════════════ */}
         <View style={styles.bentoRow}>
           <View style={[styles.bentoTile, isBleConnected && styles.bentoTileActiveLime]}>
             <View style={styles.tileHeader}>
@@ -357,204 +955,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <View style={styles.errorPill}><Text style={styles.errorPillText}>{bleError}</Text></View>
         ) : null}
 
-        {/* ── ADAPTIVE AI SECTION ── */}
-        <View style={styles.adaptiveSection}>
-          <View style={styles.adaptiveTitleRow}>
-            <Text style={styles.adaptiveSectionTitle}>⚡ HỨNG LÊN LÀ CHẠY — AI PT ĐỀ XUẤT</Text>
-            <View style={styles.aiBadge}><Text style={styles.aiBadgeText}>AI ADAPTIVE</Text></View>
-          </View>
-          <Text style={styles.adaptiveSectionSub}>
-            Tự động phân tích lịch tuần và thể lực để đề xuất bài chạy phù hợp nhất.
-          </Text>
-
-          {adaptiveRec?.weeklyContextSummary ? (
-            <View style={styles.contextSummaryChip}>
-              <Text style={styles.contextSummaryText}>📊 {adaptiveRec.weeklyContextSummary}</Text>
-            </View>
-          ) : null}
-
-          <Text style={styles.feelingPromptText}>Hôm nay bạn cảm thấy thế nào?</Text>
-          <View style={styles.feelingPillsRow}>
-            {[
-              { id: 'FRESH_READY', label: '⚡ Sung sức' },
-              { id: 'NORMAL', label: '😊 Bình thường' },
-              { id: 'FATIGUED_SORE', label: '😮‍💨 Chân mỏi' },
-              { id: 'LIMITED_TIME', label: '⏱️ Gấp 20p' },
-            ].map((f) => {
-              const isSelected = selectedFeeling === f.id;
-              return (
-                <TouchableOpacity
-                  key={f.id}
-                  style={[styles.feelingPill, isSelected && styles.feelingPillActive]}
-                  onPress={() => handleSelectFeeling(f.id as RunnerFeeling)}
-                >
-                  <Text style={[styles.feelingPillText, isSelected && styles.textDark]}>{f.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          {adaptiveRec ? (
-            <View style={styles.adaptiveCard}>
-              <View style={styles.adaptiveCardTop}>
-                <View style={styles.recTypeBadge}>
-                  <Text style={styles.recTypeBadgeText}>{adaptiveRec.recommendedType}</Text>
-                </View>
-                <Text style={styles.adaptiveDistText}>{adaptiveRec.workout.totalDistanceKm} KM</Text>
-              </View>
-              <Text style={styles.adaptiveWorkoutTitle}>{adaptiveRec.workout.title}</Text>
-              <Text style={styles.adaptiveReasonText}>{adaptiveRec.reasoning}</Text>
-              <View style={styles.aiQuoteBox}>
-                <Text style={styles.aiQuoteIcon}>💡</Text>
-                <Text style={styles.aiQuoteText}>{adaptiveRec.aiSuggestedQuote}</Text>
-              </View>
-              <View style={styles.segmentsBox}>
-                {adaptiveRec.workout.segments.map((seg) => {
-                  const resolved = resolvePaceRange(seg as PaceSegmentLike, profile, currentGoal);
-                  return (
-                    <View key={seg.id} style={styles.segRow}>
-                      <Text style={styles.segName} numberOfLines={1}>{seg.name}</Text>
-                      <Text style={styles.segTarget}>{resolved.displayText}</Text>
-                    </View>
-                  );
-                })}
-              </View>
-              <TouchableOpacity
-                style={styles.ctaLimeBtn}
-                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); onSelectWorkout(adaptiveRec.workout); }}
-              >
-                <Text style={styles.ctaLimeBtnText}>CHẠY BÀI NÀY NGAY VỚI AUDIO COACH</Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
-
-          <View style={styles.aiQaCard}>
-            <View style={styles.aiQaHeader}>
-              <Text style={styles.aiQaTitle}>💬 HỎI AI HUẤN LUYỆN VIÊN</Text>
-              <Text style={styles.aiQaProviderTag}>{geminiApiKey.trim() ? 'GEMINI LIVE' : 'OFFLINE AI PT'}</Text>
-            </View>
-            <View style={styles.aiQuickQRow}>
-              {['Mỏi bắp chuối?', 'Sau T3 cầu lông?', 'Uống nước nhịp thở?'].map(q => (
-                <TouchableOpacity key={q} style={styles.quickQChip} onPress={() => setAiQuestion(q)}>
-                  <Text style={styles.quickQText}>{q}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <View style={styles.aiInputRow}>
-              <TextInput
-                style={styles.aiTextInput}
-                value={aiQuestion}
-                onChangeText={setAiQuestion}
-                placeholder="Hỏi PT..."
-                placeholderTextColor="#64748B"
-              />
-              <TouchableOpacity style={styles.aiSendBtn} onPress={handleAskAiCoach} disabled={isAiThinking}>
-                {isAiThinking ? (
-                  <ActivityIndicator size="small" color="#08090C" />
-                ) : (
-                  <Text style={styles.aiSendBtnText}>Hỏi</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-            {aiAnswer ? (
-              <View style={styles.aiAnswerBox}>
-                <Text style={styles.aiAnswerTitle}>🤖 LỜI KHUYÊN TỪ AI PT:</Text>
-                <Text style={styles.aiAnswerText}>{aiAnswer}</Text>
-              </View>
-            ) : null}
-          </View>
-        </View>
-
-        {/* ── WEEK SELECTOR ── */}
-        <View style={styles.sectionHeaderRow}>
-          <View>
-            <Text style={styles.sectionTitle}>📅 LỊCH TẬP 9 TUẦN CHINH PHỤC</Text>
-            <Text style={styles.sectionHint}>T3 Cầu lông • T5/T7 Chạy chính</Text>
-          </View>
-          <View style={styles.sundayToggleRow}>
-            <Text style={styles.sundayToggleLabel}>CN tùy chọn</Text>
-            <Switch
-              value={includeSunday}
-              onValueChange={(val) => { Haptics.selectionAsync(); setIncludeSunday(val); }}
-              trackColor={{ false: '#252838', true: '#C8FF00' }}
-              thumbColor={includeSunday ? '#08090C' : '#64748B'}
-              style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
-            />
-          </View>
-        </View>
-
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.weekPillsRow}>
-          {weeks.map((week, idx) => {
-            const isSelected = idx === selectedWeekIndex;
-            return (
-              <TouchableOpacity
-                key={week.weekNumber}
-                style={[styles.weekPill, isSelected && styles.weekPillActive]}
-                onPress={() => { Haptics.selectionAsync(); setSelectedWeekIndex(idx); }}
-              >
-                <Text style={[styles.weekPillNum, isSelected && styles.weekPillTextDark]}>T{week.weekNumber}</Text>
-                <Text style={[styles.weekPillDate, isSelected && styles.weekPillDateDark]}>
-                  {week.dateRange.split(' - ')[0].slice(0, 5)}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-
-        <View style={styles.focusCard}>
-          <Text style={styles.focusDate}>{activeWeek.dateRange}</Text>
-          <Text style={styles.focusText}>{activeWeek.focus}</Text>
-        </View>
-
-        {/* ── WORKOUT CARDS ── */}
-        {visibleWorkouts.map((workout: any) => {
-          const isSunday = Boolean(workout.isOptional || workout.dayOfWeek?.toLowerCase().includes('nhật'));
-          const isCheckpoint = workout.type === 'Checkpoint';
-          return (
-            <View key={workout.id} style={[styles.workoutCard, isCheckpoint && styles.workoutCardCheckpoint]}>
-              <View style={styles.workoutMetaRow}>
-                <View style={styles.workoutBadgesLeft}>
-                  <View style={[styles.dayChip, isSunday && styles.dayChipOptional, isCheckpoint && styles.dayChipCheckpoint]}>
-                    <Text style={[styles.dayChipText, isSunday && styles.dayChipTextOptional, isCheckpoint && styles.dayChipTextCheckpoint]}>
-                      {isSunday ? 'CN (TÙY CHỌN)' : workout.dayOfWeek?.toUpperCase()}
-                    </Text>
-                  </View>
-                </View>
-                <View style={[styles.kmBadge, isCheckpoint && styles.kmBadgePurple]}>
-                  <Text style={[styles.kmBadgeText, isCheckpoint && styles.kmBadgeTextPurple]}>{workout.totalDistanceKm} KM</Text>
-                </View>
-              </View>
-
-              <Text style={[styles.workoutTitle, isCheckpoint && styles.workoutTitleCheckpoint]}>{workout.title}</Text>
-              <Text style={styles.workoutDesc}>{workout.description}</Text>
-
-              <View style={styles.segmentsBox}>
-                {workout.segments.slice(0, 4).map((seg: any) => {
-                  const resolved = resolvePaceRange(seg as PaceSegmentLike, profile, currentGoal);
-                  return (
-                    <View key={seg.id} style={styles.segRow}>
-                      <Text style={styles.segName} numberOfLines={1}>{seg.name}</Text>
-                      <Text style={styles.segTarget}>{resolved.displayText}</Text>
-                    </View>
-                  );
-                })}
-                {workout.segments.length > 4 ? (
-                  <Text style={styles.moreSegText}>+ {workout.segments.length - 4} chặng tiếp theo</Text>
-                ) : null}
-              </View>
-
-              <TouchableOpacity
-                style={[styles.ctaLimeBtn, isCheckpoint && styles.ctaPurpleBtn]}
-                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); onSelectWorkout(workout as unknown as WorkoutPlan); }}
-              >
-                <Text style={[styles.ctaLimeBtnText, isCheckpoint && styles.ctaPurpleBtnText]}>
-                  {isCheckpoint ? '🏆 CHẠY BÀI TEST CHECKPOINT' : 'CHẠY NGAY VỚI AUDIO COACH'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          );
-        })}
-
+        {/* Edit profile button */}
         <TouchableOpacity
           style={styles.editProfileBtnFull}
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setIsEditProfileVisible(true); }}
@@ -564,6 +965,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
       </ScrollView>
 
+      {/* ── EDIT PROFILE MODAL ── */}
       <Modal visible={isEditProfileVisible} animationType="slide" transparent={true} onRequestClose={() => setIsEditProfileVisible(false)}>
         <SafeAreaView style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -639,63 +1041,499 @@ function parseMmSsToSeconds(str: string, fallback: number): number {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#08090C' },
-  container: { padding: 16, paddingBottom: 40 },
-  posterBento: { flexDirection: 'row', gap: 10, marginBottom: 14 },
-  posterCard: { flex: 1.618, flexDirection: 'row', backgroundColor: '#111218', borderWidth: 1, borderColor: 'rgba(75,46,255,0.6)', borderRadius: 2, minHeight: 180, overflow: 'hidden' },
-  posterRibbonLime: { width: 28, backgroundColor: '#C8FF00', alignItems: 'center', justifyContent: 'center', paddingVertical: 8, gap: 16 },
-  posterRibbonText: { color: '#08090C', fontSize: 9, fontWeight: '900', letterSpacing: 2, transform: [{ rotate: '90deg' }] },
-  posterRibbonPurple: { width: 18, backgroundColor: '#4B2EFF', alignItems: 'center', justifyContent: 'center' },
-  posterRibbonPurpleText: { color: '#FFFFFF', fontSize: 7, fontWeight: '900', letterSpacing: 1.5, transform: [{ rotate: '90deg' }] },
-  posterCardMain: { flex: 1, padding: 12, justifyContent: 'space-between' },
-  posterCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  posterGoalBadge: { backgroundColor: '#4B2EFF', paddingHorizontal: 8, paddingVertical: 3 },
-  posterGoalBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
-  posterChevs: { color: '#C8FF00', fontSize: 14, fontWeight: '900' },
-  posterTitleLayer: { marginTop: 8 },
-  posterBigTitle: { color: '#C8FF00', fontSize: 36, fontWeight: '900', letterSpacing: -1, lineHeight: 36, textTransform: 'uppercase', fontStyle: 'italic' },
-  posterSubRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 6 },
+  container: { padding: 16, paddingBottom: 48 },
+
+  // ── POSTER BENTO ──────────────────────────────────────────────────────
+  posterBento: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
+    minHeight: 196,
+  },
+  posterCard: {
+    flex: 1.618,
+    flexDirection: 'row',
+    backgroundColor: '#111218',
+    borderWidth: 1,
+    borderColor: 'rgba(75,46,255,0.6)',
+    borderRadius: 2,
+    minHeight: 196,
+    overflow: 'hidden',
+  },
+  posterRibbonLime: {
+    width: 28,
+    backgroundColor: '#C8FF00',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    gap: 16,
+    flexShrink: 0,
+    zIndex: 2,
+  },
+  posterRibbonText: {
+    color: '#08090C',
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 2,
+    transform: [{ rotate: '90deg' }],
+    textTransform: 'uppercase',
+  },
+  posterRibbonPurple: {
+    width: 18,
+    backgroundColor: '#4B2EFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    zIndex: 2,
+  },
+  posterRibbonPurpleText: {
+    color: '#FFFFFF',
+    fontSize: 6,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+    transform: [{ rotate: '90deg' }],
+    textTransform: 'uppercase',
+  },
+  posterCardMain: {
+    flex: 1,
+    padding: 10,
+    justifyContent: 'space-between',
+    overflow: 'hidden',
+  },
+  posterHeroImg: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    opacity: 0.45,
+    width: '100%',
+    height: '100%',
+  },
+  posterGradientOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(8,9,12,0.5)',
+  },
+  posterCardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  posterGoalBadge: {
+    backgroundColor: '#4B2EFF',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  posterGoalBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  posterChevRow: { flexDirection: 'row', gap: 2 },
+  posterChev: { color: '#C8FF00', fontSize: 14, fontWeight: '900' },
+  posterTitleLayer: { zIndex: 10, marginTop: 8 },
+  posterBigTitle: {
+    color: '#C8FF00',
+    fontSize: 34,
+    fontWeight: '900',
+    letterSpacing: -1,
+    lineHeight: 34,
+    textTransform: 'uppercase',
+    fontStyle: 'italic',
+  },
+  posterSubRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 4 },
   posterDist: { color: '#F8FAFC', fontSize: 20, fontWeight: '900', fontStyle: 'italic' },
-  posterPace: { color: '#9D85FF', fontSize: 16, fontWeight: '900', fontVariant: ['tabular-nums'] },
-  posterLimeCard: { flex: 1, backgroundColor: '#C8FF00', borderRadius: 2, padding: 12, justifyContent: 'space-between', alignItems: 'center', minHeight: 180 },
-  posterLimeTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' },
+  posterPace: { color: '#9D85FF', fontSize: 15, fontWeight: '900' },
+
+  // Right lime card
+  posterLimeCard: {
+    flex: 1,
+    backgroundColor: '#C8FF00',
+    borderRadius: 2,
+    padding: 10,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    minHeight: 196,
+  },
+  posterLimeTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
   posterLimeTopLabel: { color: '#08090C', fontSize: 11, fontWeight: '900', letterSpacing: 1 },
-  liveChip: { backgroundColor: '#08090C', paddingHorizontal: 6, paddingVertical: 2 },
-  liveChipText: { color: '#C8FF00', fontSize: 9, fontWeight: '900' },
-  posterDaysCircle: { width: 80, height: 80, borderRadius: 40, borderWidth: 2, borderColor: '#08090C', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
-  posterDaysNum: { color: '#08090C', fontSize: 32, fontWeight: '900', fontVariant: ['tabular-nums'], lineHeight: 34 },
+  liveChip: { backgroundColor: '#08090C', paddingHorizontal: 5, paddingVertical: 2 },
+  liveChipText: { color: '#C8FF00', fontSize: 8, fontWeight: '900' },
+  posterDaysCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 2,
+    borderColor: '#08090C',
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  posterDaysNum: { color: '#08090C', fontSize: 32, fontWeight: '900', lineHeight: 34 },
   posterDaysLabel: { color: '#08090C', fontSize: 9, fontWeight: '900', letterSpacing: 2 },
-  posterLimeDate: { backgroundColor: '#4B2EFF', paddingVertical: 4, paddingHorizontal: 8, alignSelf: 'stretch', alignItems: 'center' },
+  posterLimeDate: {
+    backgroundColor: '#4B2EFF',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    borderRadius: 2,
+  },
   posterLimeDateText: { color: '#FFFFFF', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
-  goalTierGrid: { flexDirection: 'row', gap: 8, backgroundColor: '#111218', padding: 8, borderRadius: 14, marginBottom: 14 },
-  tierPill: { flex: 1, backgroundColor: '#08090C', borderRadius: 10, paddingVertical: 10, paddingHorizontal: 6, alignItems: 'center', borderWidth: 1, borderColor: '#252838' },
+
+  // ── GOAL TIER SELECTOR ────────────────────────────────────────────────
+  goalTierGrid: {
+    flexDirection: 'row',
+    gap: 8,
+    backgroundColor: '#111218',
+    padding: 8,
+    borderRadius: 14,
+    marginBottom: 14,
+  },
+  tierPill: {
+    flex: 1,
+    backgroundColor: '#08090C',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#252838',
+  },
   tierPillSelected: { backgroundColor: '#C8FF00', borderColor: '#C8FF00' },
   tierPillTitle: { color: '#94A3B8', fontSize: 12, fontWeight: '800', marginBottom: 2 },
   tierPillTitleSelected: { color: '#08090C' },
-  tierPillPace: { color: '#64748B', fontSize: 10, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  tierPillPace: { color: '#64748B', fontSize: 10, fontWeight: '700' },
   tierPillPaceSelected: { color: '#08090C' },
+
+  // ── WEEK SELECTOR ─────────────────────────────────────────────────────
+  weekSelectorSection: { marginBottom: 14 },
+  weekHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  weekSectionTitle: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
+  weekTotalKm: { color: '#C8FF00', fontSize: 16, fontWeight: '900' },
+  weekPillsRow: { flexDirection: 'row', gap: 8, paddingBottom: 4 },
+  weekPill: {
+    backgroundColor: '#111218',
+    borderWidth: 1,
+    borderColor: '#252838',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 14,
+    alignItems: 'center',
+  },
+  weekPillActive: { backgroundColor: '#4B2EFF', borderColor: '#4B2EFF' },
+  weekPillNum: { color: '#F8FAFC', fontSize: 13, fontWeight: '800' },
+  weekPillTextDark: { color: '#FFFFFF' },
+  weekPillDate: { color: '#64748B', fontSize: 9, fontWeight: '700', marginTop: 2 },
+  weekPillDateDark: { color: 'rgba(255,255,255,0.7)' },
+  weekDateRange: { color: '#9D85FF', fontSize: 11, fontWeight: '700', marginTop: 6 },
+  sundayToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  sundayToggleLabel: { color: '#94A3B8', fontSize: 11, fontWeight: '600' },
+
+  // ── WORKOUT CARDS ─────────────────────────────────────────────────────
+  workoutCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 2,
+    padding: 14,
+    marginBottom: 14,
+    borderBottomWidth: 4,
+    borderBottomColor: '#4B2EFF',
+    overflow: 'hidden',
+  },
+  workoutCardNext: {
+    borderBottomColor: '#C8FF00',
+    shadowColor: '#C8FF00',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  workoutCardCheckpoint: {
+    borderBottomColor: '#4B2EFF',
+    backgroundColor: '#F4F3FF',
+  },
+  workoutCardDone: {
+    borderBottomColor: '#10B981',
+    opacity: 0.75,
+  },
+  workoutCardTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  workoutBadgesLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  stageBadge: {
+    backgroundColor: '#4B2EFF',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  stageBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '900', letterSpacing: 1 },
+  nextBadge: {
+    backgroundColor: '#C8FF00',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  nextBadgeText: { color: '#08090C', fontSize: 9, fontWeight: '900', letterSpacing: 1 },
+  doneBadge: {
+    backgroundColor: '#10B981',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  doneBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '900' },
+  workoutIconBox: { justifyContent: 'center', alignItems: 'center' },
+  workoutMetaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  dayChip: {
+    backgroundColor: '#E2E8F0',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  dayChipOptional: { backgroundColor: '#FEF3C7' },
+  dayChipCheckpoint: { backgroundColor: 'rgba(75,46,255,0.1)' },
+  dayChipText: { color: '#475569', fontSize: 10, fontWeight: '800' },
+  dayChipTextOptional: { color: '#92400E' },
+  dayChipTextCheckpoint: { color: '#4B2EFF' },
+  kmBadge: {
+    backgroundColor: '#C8FF00',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  kmBadgePurple: { backgroundColor: '#4B2EFF' },
+  kmBadgeText: { color: '#08090C', fontSize: 11, fontWeight: '900' },
+  kmBadgeTextPurple: { color: '#FFFFFF' },
+  workoutTitle: {
+    color: '#08090C',
+    fontSize: 17,
+    fontWeight: '900',
+    letterSpacing: -0.3,
+    marginBottom: 4,
+    lineHeight: 20,
+  },
+  workoutTitleCheckpoint: { color: '#4B2EFF' },
+  segmentsBox: { marginBottom: 10 },
+  segRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 3,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  segName: { color: '#334155', fontSize: 11, fontWeight: '600', flex: 1, marginRight: 8 },
+  segTarget: { color: '#4B2EFF', fontSize: 11, fontWeight: '800' },
+  workoutBottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  expandBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 8,
+  },
+  expandBtnText: { color: '#475569', fontSize: 11, fontWeight: '800' },
+  expandBtnPlaceholder: { width: 1 },
+  runBtnNext: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: '#C8FF00',
+    backgroundColor: 'transparent',
+  },
+  runBtnNextText: { color: '#08090C', fontSize: 13, fontWeight: '900' },
+  runBtn: {
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#4B2EFF',
+    backgroundColor: 'transparent',
+  },
+  runBtnCheckpoint: { borderColor: '#4B2EFF', backgroundColor: '#4B2EFF' },
+  runBtnText: { color: '#4B2EFF', fontSize: 12, fontWeight: '900' },
+  runBtnTextCheckpoint: { color: '#FFFFFF' },
+
+  // ── ADAPTIVE AI DRAWER ────────────────────────────────────────────────
+  adaptiveSection: {
+    backgroundColor: '#111218',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(75,46,255,0.4)',
+  },
+  adaptiveHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  adaptiveHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  adaptiveLightning: { fontSize: 16, color: '#C8FF00' },
+  adaptiveHeaderTitle: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
+  adaptiveChev: { color: '#94A3B8', fontSize: 14 },
+  adaptiveDrawer: { paddingTop: 14, gap: 12 },
+  feelingPillsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  feelingPill: {
+    flex: 1,
+    minWidth: '40%',
+    backgroundColor: '#08090C',
+    borderWidth: 1,
+    borderColor: '#252838',
+    paddingVertical: 8,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  feelingPillActive: { backgroundColor: '#C8FF00', borderColor: '#C8FF00' },
+  feelingPillText: { color: '#94A3B8', fontSize: 10, fontWeight: '800' },
+  textDark: { color: '#08090C' },
+  adaptiveCard: {
+    backgroundColor: '#08090C',
+    borderWidth: 1,
+    borderColor: '#252838',
+    borderRadius: 16,
+    padding: 14,
+  },
+  adaptiveCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  recTypeBadge: {
+    backgroundColor: 'rgba(200,255,0,0.13)',
+    borderWidth: 1,
+    borderColor: '#C8FF00',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  recTypeBadgeText: { color: '#C8FF00', fontSize: 10, fontWeight: '900' },
+  adaptiveDistText: { color: '#9D85FF', fontSize: 16, fontWeight: '900' },
+  adaptiveWorkoutTitle: { color: '#F8FAFC', fontSize: 15, fontWeight: '900', marginBottom: 4 },
+  adaptiveReasonText: { color: '#94A3B8', fontSize: 12, lineHeight: 17, marginBottom: 10 },
+  aiQuoteBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#111218',
+    borderRadius: 8,
+    padding: 8,
+    gap: 8,
+    marginBottom: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: '#4B2EFF',
+  },
+  aiQuoteIcon: { fontSize: 14 },
+  aiQuoteText: { color: '#F8FAFC', fontSize: 11, fontStyle: 'italic', flex: 1 },
+  ctaLimeBtn: {
+    backgroundColor: '#C8FF00',
+    paddingVertical: 13,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  ctaLimeBtnText: { color: '#08090C', fontSize: 12, fontWeight: '900', letterSpacing: 0.5 },
+  aiQaCard: {
+    backgroundColor: '#08090C',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#252838',
+  },
+  aiQaHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  aiQaTitle: { color: '#C8FF00', fontSize: 11, fontWeight: '900', letterSpacing: 0.5 },
+  aiQaProviderTag: { color: '#64748B', fontSize: 9, fontWeight: '800' },
+  aiQuickQRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 },
+  quickQChip: { backgroundColor: '#181A24', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
+  quickQText: { color: '#CBD5E1', fontSize: 11 },
+  aiInputRow: { flexDirection: 'row', gap: 6 },
+  aiTextInput: {
+    flex: 1,
+    backgroundColor: '#111218',
+    borderWidth: 1,
+    borderColor: '#252838',
+    borderRadius: 10,
+    color: '#F8FAFC',
+    fontSize: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  aiSendBtn: {
+    backgroundColor: '#C8FF00',
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 10,
+  },
+  aiSendBtnText: { color: '#08090C', fontSize: 12, fontWeight: '900' },
+  aiAnswerBox: {
+    backgroundColor: '#111218',
+    borderRadius: 10,
+    padding: 10,
+    marginTop: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#C8FF00',
+  },
+  aiAnswerTitle: { color: '#C8FF00', fontSize: 10, fontWeight: '900', marginBottom: 2 },
+  aiAnswerText: { color: '#F8FAFC', fontSize: 12, lineHeight: 17 },
+
+  // ── BLE BENTO ─────────────────────────────────────────────────────────
   bentoRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
-  bentoTile: { flex: 1, backgroundColor: '#111218', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: '#252838', justifyContent: 'space-between' },
+  bentoTile: {
+    flex: 1,
+    backgroundColor: '#111218',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#252838',
+    justifyContent: 'space-between',
+  },
   bentoTileActiveLime: { borderColor: 'rgba(200,255,0,0.4)', backgroundColor: '#0e1109' },
-  bentoTileActiveVolt: { borderColor: 'rgba(200,255,0,0.4)', backgroundColor: '#0e1109' },
   tileHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
   dotLime: { backgroundColor: '#C8FF00' },
-  dotVolt: { backgroundColor: '#C8FF00' },
   dotCoral: { backgroundColor: '#FF3B5C' },
   dotAmber: { backgroundColor: '#FFB020' },
   dotMuted: { backgroundColor: '#475569' },
   tileLabel: { color: '#94A3B8', fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
   hrReadoutRow: { flexDirection: 'row', alignItems: 'baseline', gap: 4, marginVertical: 4 },
-  hrBigValue: { color: '#F8FAFC', fontSize: 32, fontWeight: '900', fontVariant: ['tabular-nums'] },
+  hrBigValue: { color: '#F8FAFC', fontSize: 32, fontWeight: '900' },
   hrUnit: { color: '#64748B', fontSize: 12, fontWeight: '700' },
   lthrStepperRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginVertical: 4 },
   stepBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#252838', justifyContent: 'center', alignItems: 'center' },
   stepBtnText: { color: '#F8FAFC', fontSize: 16, fontWeight: '700' },
-  lthrBigValue: { color: '#C8FF00', fontSize: 28, fontWeight: '900', fontVariant: ['tabular-nums'] },
+  lthrBigValue: { color: '#C8FF00', fontSize: 28, fontWeight: '900' },
   tileSubText: { color: '#64748B', fontSize: 10, fontWeight: '600', marginBottom: 6 },
   tileBtn: { paddingVertical: 8, borderRadius: 10, alignItems: 'center' },
   tileBtnLime: { backgroundColor: '#C8FF00' },
-  tileBtnVolt: { backgroundColor: '#C8FF00' },
   tileBtnGhost: { backgroundColor: '#252838' },
   tileBtnText: { color: '#F8FAFC', fontSize: 12, fontWeight: '800' },
   tileBtnTextDark: { color: '#08090C' },
@@ -705,97 +1543,30 @@ const styles = StyleSheet.create({
   simMiniText: { color: '#94A3B8', fontSize: 10, fontWeight: '700' },
   simMiniDangerBtn: { backgroundColor: '#FF3B5C22', paddingVertical: 6, paddingHorizontal: 8, borderRadius: 8, borderWidth: 1, borderColor: '#FF3B5C66', alignItems: 'center' },
   simMiniDangerText: { color: '#FF3B5C', fontSize: 10, fontWeight: '700' },
+
   errorPill: { backgroundColor: '#FF3B5C22', borderColor: '#FF3B5C55', borderWidth: 1, padding: 10, borderRadius: 12, marginBottom: 14 },
   errorPillText: { color: '#FF6B8B', fontSize: 12, fontWeight: '600', textAlign: 'center' },
-  adaptiveSection: { backgroundColor: '#111218', borderWidth: 1.5, borderColor: 'rgba(75,46,255,0.4)', borderRadius: 20, padding: 16, marginBottom: 20 },
-  adaptiveTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  adaptiveSectionTitle: { color: '#C8FF00', fontSize: 13, fontWeight: '900', letterSpacing: 0.5, flex: 1, marginRight: 8 },
-  aiBadge: { backgroundColor: 'rgba(75,46,255,0.3)', borderWidth: 1, borderColor: '#4B2EFF', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
-  aiBadgeText: { color: '#9D85FF', fontSize: 9, fontWeight: '900' },
-  adaptiveSectionSub: { color: '#94A3B8', fontSize: 11, lineHeight: 16, marginBottom: 12 },
-  contextSummaryChip: { backgroundColor: '#08090C', borderWidth: 1, borderColor: '#252838', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, marginBottom: 12 },
-  contextSummaryText: { color: '#C8FF00', fontSize: 11, fontWeight: '700' },
-  feelingPromptText: { color: '#F8FAFC', fontSize: 12, fontWeight: '800', marginBottom: 8 },
-  feelingPillsRow: { flexDirection: 'row', gap: 6, marginBottom: 14 },
-  feelingPill: { flex: 1, backgroundColor: '#08090C', borderWidth: 1, borderColor: '#252838', paddingVertical: 8, borderRadius: 10, alignItems: 'center' },
-  feelingPillActive: { backgroundColor: '#C8FF00', borderColor: '#C8FF00' },
-  feelingPillText: { color: '#94A3B8', fontSize: 10, fontWeight: '800' },
-  textDark: { color: '#08090C' },
-  adaptiveCard: { backgroundColor: '#08090C', borderWidth: 1, borderColor: '#252838', borderRadius: 16, padding: 14, marginBottom: 14 },
-  adaptiveCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  recTypeBadge: { backgroundColor: 'rgba(200,255,0,0.13)', borderWidth: 1, borderColor: '#C8FF00', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  recTypeBadgeText: { color: '#C8FF00', fontSize: 10, fontWeight: '900' },
-  adaptiveDistText: { color: '#9D85FF', fontSize: 16, fontWeight: '900' },
-  adaptiveWorkoutTitle: { color: '#F8FAFC', fontSize: 16, fontWeight: '900', marginBottom: 6 },
-  adaptiveReasonText: { color: '#94A3B8', fontSize: 12, lineHeight: 17, marginBottom: 10 },
-  aiQuoteBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#111218', borderRadius: 8, padding: 8, gap: 8, marginBottom: 12, borderLeftWidth: 3, borderLeftColor: '#4B2EFF' },
-  aiQuoteIcon: { fontSize: 14 },
-  aiQuoteText: { color: '#F8FAFC', fontSize: 11, fontStyle: 'italic', flex: 1 },
-  ctaLimeBtn: { backgroundColor: '#C8FF00', paddingVertical: 13, borderRadius: 12, alignItems: 'center', marginTop: 4 },
-  ctaLimeBtnText: { color: '#08090C', fontSize: 13, fontWeight: '900', letterSpacing: 0.5 },
-  ctaPurpleBtn: { backgroundColor: '#4B2EFF' },
-  ctaPurpleBtnText: { color: '#FFFFFF' },
-  ctaAdaptiveBtn: { backgroundColor: '#C8FF00', paddingVertical: 13, borderRadius: 12, alignItems: 'center', marginTop: 4 },
-  ctaAdaptiveBtnText: { color: '#08090C', fontSize: 13, fontWeight: '900', letterSpacing: 0.5 },
-  ctaVoltBtn: { backgroundColor: '#C8FF00', paddingVertical: 13, borderRadius: 12, alignItems: 'center' },
-  ctaVoltBtnText: { color: '#08090C', fontSize: 13, fontWeight: '900', letterSpacing: 0.5 },
-  aiQaCard: { backgroundColor: '#08090C', borderRadius: 14, padding: 12, borderWidth: 1, borderColor: '#252838' },
-  aiQaHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  aiQaTitle: { color: '#C8FF00', fontSize: 11, fontWeight: '900', letterSpacing: 0.5 },
-  aiQaProviderTag: { color: '#64748B', fontSize: 9, fontWeight: '800' },
-  aiQaSub: { color: '#94A3B8', fontSize: 11, lineHeight: 15, marginBottom: 8 },
-  aiQuickQRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 },
-  quickQChip: { backgroundColor: '#181A24', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
-  quickQText: { color: '#CBD5E1', fontSize: 11 },
-  aiInputRow: { flexDirection: 'row', gap: 6 },
-  aiTextInput: { flex: 1, backgroundColor: '#111218', borderWidth: 1, borderColor: '#252838', borderRadius: 10, color: '#F8FAFC', fontSize: 12, paddingHorizontal: 10, paddingVertical: 7 },
-  aiSendBtn: { backgroundColor: '#C8FF00', paddingHorizontal: 14, justifyContent: 'center', alignItems: 'center', borderRadius: 10 },
-  aiSendBtnText: { color: '#08090C', fontSize: 12, fontWeight: '900' },
-  aiAnswerBox: { backgroundColor: '#111218', borderRadius: 10, padding: 10, marginTop: 8, borderLeftWidth: 3, borderLeftColor: '#C8FF00' },
-  aiAnswerTitle: { color: '#C8FF00', fontSize: 10, fontWeight: '900', marginBottom: 2 },
-  aiAnswerText: { color: '#F8FAFC', fontSize: 12, lineHeight: 17 },
-  sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  sectionTitle: { color: '#F8FAFC', fontSize: 14, fontWeight: '800', letterSpacing: 0.3 },
-  sectionHint: { color: '#64748B', fontSize: 11, fontWeight: '600', marginTop: 2 },
-  sundayToggleRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  sundayToggleLabel: { color: '#94A3B8', fontSize: 11, fontWeight: '600' },
-  weekPillsRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  weekPill: { backgroundColor: '#111218', borderWidth: 1, borderColor: '#252838', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 14, alignItems: 'center' },
-  weekPillActive: { backgroundColor: '#C8FF00', borderColor: '#C8FF00' },
-  weekPillNum: { color: '#F8FAFC', fontSize: 13, fontWeight: '800' },
-  weekPillTextDark: { color: '#08090C' },
-  weekPillDate: { color: '#64748B', fontSize: 9, fontWeight: '700', marginTop: 2 },
-  weekPillDateDark: { color: '#08090C' },
-  focusCard: { backgroundColor: '#111218', borderWidth: 1, borderColor: '#252838', borderRadius: 14, padding: 12, marginBottom: 14 },
-  focusDate: { color: '#9D85FF', fontSize: 11, fontWeight: '800', marginBottom: 4 },
-  focusText: { color: '#F8FAFC', fontSize: 13, fontWeight: '600', lineHeight: 18 },
-  workoutCard: { backgroundColor: '#111218', borderWidth: 1, borderColor: '#252838', borderRadius: 18, padding: 16, marginBottom: 14 },
-  workoutCardCheckpoint: { borderColor: 'rgba(75,46,255,0.6)', backgroundColor: '#0e0d1a' },
-  workoutMetaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  workoutBadgesLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  dayChip: { backgroundColor: '#252838', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  dayChipOptional: { backgroundColor: '#332711', borderWidth: 1, borderColor: '#FFB02066' },
-  dayChipCheckpoint: { backgroundColor: 'rgba(75,46,255,0.3)', borderWidth: 1, borderColor: '#4B2EFF' },
-  dayChipText: { color: '#C8FF00', fontSize: 10, fontWeight: '900' },
-  dayChipTextOptional: { color: '#FFB020' },
-  dayChipTextCheckpoint: { color: '#9D85FF' },
-  workoutDate: { color: '#64748B', fontSize: 11, fontWeight: '600' },
-  kmBadge: { backgroundColor: 'rgba(200,255,0,0.13)', borderWidth: 1, borderColor: 'rgba(200,255,0,0.33)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
-  kmBadgePurple: { backgroundColor: 'rgba(75,46,255,0.2)', borderColor: '#4B2EFF' },
-  kmBadgeText: { color: '#C8FF00', fontSize: 12, fontWeight: '900' },
-  kmBadgeTextPurple: { color: '#9D85FF' },
-  workoutTitle: { color: '#F8FAFC', fontSize: 17, fontWeight: '800', marginBottom: 4 },
-  workoutTitleCheckpoint: { color: '#9D85FF' },
-  workoutDesc: { color: '#94A3B8', fontSize: 12, fontWeight: '500', lineHeight: 16, marginBottom: 12 },
-  segmentsBox: { backgroundColor: '#08090C', borderRadius: 12, padding: 10, marginBottom: 14, gap: 6 },
-  segRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  segName: { color: '#94A3B8', fontSize: 12, fontWeight: '600', flex: 1, marginRight: 8 },
-  segTarget: { color: '#C8FF00', fontSize: 12, fontWeight: '800', fontVariant: ['tabular-nums'] },
-  moreSegText: { color: '#64748B', fontSize: 10, fontWeight: '600', fontStyle: 'italic', marginTop: 2 },
-  editProfileBtnFull: { backgroundColor: '#14151D', borderWidth: 1, borderColor: '#252838', paddingVertical: 14, borderRadius: 14, alignItems: 'center', marginTop: 4 },
+
+  editProfileBtnFull: {
+    backgroundColor: '#111218',
+    borderWidth: 1,
+    borderColor: '#252838',
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: 'center',
+    marginTop: 8,
+  },
   editProfileBtnFullText: { color: '#9D85FF', fontSize: 12, fontWeight: '800' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(8,9,12,0.92)', justifyContent: 'center', padding: 16 },
-  modalContent: { backgroundColor: '#111218', borderRadius: 20, borderWidth: 1, borderColor: '#252838', padding: 20, maxHeight: '90%' },
+
+  // ── MODAL ─────────────────────────────────────────────────────────────
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },
+  modalContent: {
+    backgroundColor: '#111218',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    maxHeight: '90%',
+  },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   modalTitle: { color: '#F8FAFC', fontSize: 16, fontWeight: '900' },
   modalCloseBtn: { padding: 4 },
@@ -804,31 +1575,17 @@ const styles = StyleSheet.create({
   formRow: { marginBottom: 12 },
   formLabel: { color: '#94A3B8', fontSize: 12, fontWeight: '700', marginBottom: 4 },
   formSubHint: { color: '#64748B', fontSize: 10, lineHeight: 14, marginTop: 4 },
-  formInput: { backgroundColor: '#08090C', borderWidth: 1, borderColor: '#252838', borderRadius: 10, color: '#F8FAFC', fontSize: 14, fontWeight: '700', paddingHorizontal: 12, paddingVertical: 8 },
+  formInput: {
+    backgroundColor: '#08090C',
+    borderWidth: 1,
+    borderColor: '#252838',
+    borderRadius: 10,
+    color: '#F8FAFC',
+    fontSize: 14,
+    fontWeight: '700',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
   saveProfileBtn: { backgroundColor: '#C8FF00', paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 10, marginBottom: 20 },
   saveProfileBtnText: { color: '#08090C', fontSize: 13, fontWeight: '900', letterSpacing: 0.5 },
-  brandRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  brandTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  brandSub60: { color: '#F8FAFC', fontSize: 26, fontWeight: '900', letterSpacing: -0.5 },
-  voltPill: { backgroundColor: '#C8FF00', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  voltPillText: { color: '#08090C', fontSize: 10, fontWeight: '900', letterSpacing: 0.6 },
-  brandSubtitle: { color: '#64748B', fontSize: 11, fontWeight: '600', marginTop: 2 },
-  editProfileBtn: { backgroundColor: '#111218', borderWidth: 1, borderColor: '#252838', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 },
-  editProfileBtnText: { color: '#9D85FF', fontSize: 11, fontWeight: '800' },
-  goalSelectionCard: { backgroundColor: '#111218', borderWidth: 1, borderColor: '#252838', borderRadius: 16, padding: 14, marginBottom: 16 },
-  goalCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  goalCardTitle: { color: '#94A3B8', fontSize: 11, fontWeight: '800', letterSpacing: 0.6 },
-  activeGoalBadge: { backgroundColor: 'rgba(200,255,0,0.13)', borderColor: '#C8FF00', borderWidth: 1, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
-  activeGoalBadgeText: { color: '#C8FF00', fontSize: 10, fontWeight: '900' },
-  goalTiersRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
-  tierBtn: { flex: 1, backgroundColor: '#08090C', borderWidth: 1, borderColor: '#252838', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 6, alignItems: 'center' },
-  tierBtnSelected: { borderColor: '#C8FF00', backgroundColor: 'rgba(75,46,255,0.15)' },
-  tierBtnTitle: { color: '#94A3B8', fontSize: 12, fontWeight: '800', marginBottom: 3 },
-  tierBtnTitleSelected: { color: '#C8FF00' },
-  tierBtnPace: { color: '#64748B', fontSize: 10, fontWeight: '700' },
-  tierBtnPaceSelected: { color: '#F8FAFC' },
-  riegelNoteBox: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#08090C', borderRadius: 10, padding: 10, gap: 8, borderWidth: 1, borderColor: 'rgba(200,255,0,0.13)' },
-  riegelNoteIcon: { fontSize: 14 },
-  riegelNoteText: { flex: 1, color: '#94A3B8', fontSize: 11, lineHeight: 16, fontWeight: '500' },
-  adaptiveHeader: { marginBottom: 10 },
 });
