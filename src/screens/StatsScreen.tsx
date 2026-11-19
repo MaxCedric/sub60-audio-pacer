@@ -235,7 +235,7 @@ export const StatsScreen: React.FC = () => {
           <View style={styles.kpiCard}>
             <Text style={styles.kpiLabel}>TÍCH LŨY 9 TUẦN</Text>
             <View style={styles.kpiValRow}>
-              <Text style={[styles.kpiBig, { color: '#00F0FF' }]}>{totalCompletedKm}</Text>
+              <Text style={[styles.kpiBig, { color: '#C8FF00' }]}>{totalCompletedKm}</Text>
               <Text style={styles.kpiUnit}>/ {totalPlanKm} KM</Text>
             </View>
             <Text style={styles.kpiFoot}>Đã hoàn thành {runSessions.length} buổi chạy</Text>
@@ -247,7 +247,7 @@ export const StatsScreen: React.FC = () => {
               <TouchableOpacity style={styles.stepBtn} onPress={() => handleAdjustLtHr(-1)}>
                 <Text style={styles.stepBtnText}>−</Text>
               </TouchableOpacity>
-              <Text style={[styles.kpiBig, { color: '#D2FF00' }]}>{ltHrBpm}</Text>
+              <Text style={[styles.kpiBig, { color: '#C8FF00' }]}>{ltHrBpm}</Text>
               <TouchableOpacity style={styles.stepBtn} onPress={() => handleAdjustLtHr(1)}>
                 <Text style={styles.stepBtnText}>+</Text>
               </TouchableOpacity>
@@ -597,7 +597,7 @@ export const StatsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#07090D',
+    backgroundColor: '#08090C',
   },
   container: {
     padding: 16,
@@ -622,16 +622,16 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   vo2Badge: {
-    backgroundColor: '#10141D',
+    backgroundColor: '#111218',
     borderWidth: 1,
-    borderColor: '#00F0FF',
+    borderColor: '#C8FF00',
     borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: 6,
     alignItems: 'center',
   },
   vo2Label: {
-    color: '#00F0FF',
+    color: '#C8FF00',
     fontSize: 9,
     fontWeight: '800',
   },
@@ -647,11 +647,11 @@ const styles = StyleSheet.create({
   },
   kpiCard: {
     flex: 1,
-    backgroundColor: '#10141D',
+    backgroundColor: '#111218',
     borderRadius: 18,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#1E2534',
+    borderColor: '#252838',
   },
   kpiLabel: {
     color: '#64748B',
@@ -693,7 +693,7 @@ const styles = StyleSheet.create({
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: '#1E2534',
+    backgroundColor: '#252838',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -703,10 +703,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   checkpointCard: {
-    backgroundColor: '#10141D',
+    backgroundColor: '#111218',
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#00F0FF33',
+    borderColor: 'rgba(200,255,0,0.2)',
     padding: 14,
     marginBottom: 14,
   },
@@ -716,7 +716,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   checkpointTitle: {
-    color: '#00F0FF',
+    color: '#C8FF00',
     fontSize: 12,
     fontWeight: '900',
     letterSpacing: 0.5,
@@ -728,23 +728,23 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   openCpBtn: {
-    backgroundColor: '#00F0FF',
+    backgroundColor: '#C8FF00',
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 10,
   },
   openCpBtnText: {
-    color: '#07090D',
+    color: '#08090C',
     fontSize: 11,
     fontWeight: '900',
   },
   latestCpBox: {
     marginTop: 10,
-    backgroundColor: '#07090D',
+    backgroundColor: '#08090C',
     borderRadius: 10,
     padding: 10,
     borderWidth: 1,
-    borderColor: '#1E2534',
+    borderColor: '#252838',
   },
   latestCpTitle: {
     color: '#94A3B8',
@@ -758,7 +758,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   latestCpDecision: {
-    color: '#D2FF00',
+    color: '#C8FF00',
     fontSize: 11,
     fontWeight: '800',
     marginTop: 4,
@@ -770,11 +770,11 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   sectionCard: {
-    backgroundColor: '#10141D',
+    backgroundColor: '#111218',
     borderRadius: 18,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#1E2534',
+    borderColor: '#252838',
     marginBottom: 14,
   },
   sectionHeaderRow: {
@@ -789,7 +789,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   sectionTag: {
-    color: '#00F0FF',
+    color: '#C8FF00',
     fontSize: 9,
     fontWeight: '800',
   },
@@ -798,7 +798,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#1E253433',
+    borderBottomColor: '#25283833',
   },
   zoneBadge: {
     paddingHorizontal: 8,
@@ -808,7 +808,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   zoneBadgeText: {
-    color: '#07090D',
+    color: '#08090C',
     fontSize: 11,
     fontWeight: '900',
   },
@@ -840,22 +840,22 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   addNoteBtn: {
-    backgroundColor: '#1E2534',
+    backgroundColor: '#252838',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 10,
   },
   addNoteBtnText: {
-    color: '#00F0FF',
+    color: '#C8FF00',
     fontSize: 11,
     fontWeight: '800',
   },
   formCard: {
-    backgroundColor: '#10141D',
+    backgroundColor: '#111218',
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#1E2534',
+    borderColor: '#252838',
     marginBottom: 14,
   },
   formTitle: {
@@ -879,9 +879,9 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   input: {
-    backgroundColor: '#07090D',
+    backgroundColor: '#08090C',
     borderWidth: 1,
-    borderColor: '#1E2534',
+    borderColor: '#252838',
     borderRadius: 8,
     color: '#F8FAFC',
     fontSize: 12,
@@ -890,24 +890,24 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   saveNoteBtn: {
-    backgroundColor: '#00F0FF',
+    backgroundColor: '#C8FF00',
     paddingVertical: 11,
     borderRadius: 10,
     alignItems: 'center',
     marginTop: 4,
   },
   saveNoteBtnText: {
-    color: '#07090D',
+    color: '#08090C',
     fontSize: 12,
     fontWeight: '900',
   },
   emptyCard: {
-    backgroundColor: '#10141D',
+    backgroundColor: '#111218',
     borderRadius: 16,
     padding: 20,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#1E2534',
+    borderColor: '#252838',
   },
   emptyCardText: {
     color: '#64748B',
@@ -916,10 +916,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   noteCard: {
-    backgroundColor: '#10141D',
+    backgroundColor: '#111218',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#1E2534',
+    borderColor: '#252838',
     padding: 14,
     marginBottom: 12,
   },
@@ -930,13 +930,13 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   noteDatePill: {
-    backgroundColor: '#1E2534',
+    backgroundColor: '#252838',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
   },
   noteDateText: {
-    color: '#00F0FF',
+    color: '#C8FF00',
     fontSize: 10,
     fontWeight: '800',
   },
@@ -964,12 +964,12 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   rpeBadgeVal: {
-    color: '#D2FF00',
+    color: '#C8FF00',
     fontSize: 11,
     fontWeight: '900',
   },
   noteGridRow: {
-    backgroundColor: '#07090D',
+    backgroundColor: '#08090C',
     borderRadius: 8,
     padding: 8,
     marginBottom: 8,
@@ -986,12 +986,12 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   splitMiniItem: {
-    backgroundColor: '#07090D',
+    backgroundColor: '#08090C',
     paddingHorizontal: 6,
     paddingVertical: 4,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#1E2534',
+    borderColor: '#252838',
     alignItems: 'center',
   },
   splitMiniKm: {
@@ -1011,10 +1011,10 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   modalContent: {
-    backgroundColor: '#10141D',
+    backgroundColor: '#111218',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#1E2534',
+    borderColor: '#252838',
     padding: 18,
     maxHeight: '85%',
   },
@@ -1044,16 +1044,16 @@ const styles = StyleSheet.create({
   },
   cpWeekTab: {
     flex: 1,
-    backgroundColor: '#07090D',
+    backgroundColor: '#08090C',
     borderWidth: 1,
-    borderColor: '#1E2534',
+    borderColor: '#252838',
     paddingVertical: 10,
     borderRadius: 10,
     alignItems: 'center',
   },
   cpWeekTabActive: {
-    backgroundColor: '#00F0FF',
-    borderColor: '#00F0FF',
+    backgroundColor: '#C8FF00',
+    borderColor: '#C8FF00',
   },
   cpWeekTabText: {
     color: '#94A3B8',
@@ -1061,7 +1061,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   textDark: {
-    color: '#07090D',
+    color: '#08090C',
   },
   cpFormBox: {
     marginBottom: 12,
@@ -1073,9 +1073,9 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   formInput: {
-    backgroundColor: '#07090D',
+    backgroundColor: '#08090C',
     borderWidth: 1,
-    borderColor: '#1E2534',
+    borderColor: '#252838',
     borderRadius: 10,
     color: '#F8FAFC',
     fontSize: 14,
@@ -1091,27 +1091,27 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   evalBtn: {
-    backgroundColor: '#D2FF00',
+    backgroundColor: '#C8FF00',
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: 'center',
     marginBottom: 12,
   },
   evalBtnText: {
-    color: '#07090D',
+    color: '#08090C',
     fontSize: 12,
     fontWeight: '900',
   },
   resultBox: {
-    backgroundColor: '#07090D',
+    backgroundColor: '#08090C',
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#00F0FF55',
+    borderColor: 'rgba(200,255,0,0.33)',
     marginBottom: 14,
   },
   resultTitle: {
-    color: '#00F0FF',
+    color: '#C8FF00',
     fontSize: 11,
     fontWeight: '900',
     marginBottom: 4,
@@ -1133,18 +1133,18 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   acceptBtn: {
-    backgroundColor: '#00F0FF',
+    backgroundColor: '#C8FF00',
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: 'center',
   },
   acceptBtnText: {
-    color: '#07090D',
+    color: '#08090C',
     fontSize: 11,
     fontWeight: '900',
   },
   keepBtn: {
-    backgroundColor: '#1E2534',
+    backgroundColor: '#252838',
     paddingVertical: 10,
     borderRadius: 10,
     alignItems: 'center',

@@ -105,9 +105,9 @@ export const RunHudScreen: React.FC<RunHudScreenProps> = ({
     : isWalkingRecovery
     ? '#FF9800'
     : isInOpenRun
-    ? '#00F0FF'
+    ? '#C8FF00'
     : paceZoneStatus === 'IN_ZONE'
-    ? '#D2FF00'
+    ? '#C8FF00'
     : '#FFB020';
 
   const statusText = isHrDangerActive
@@ -220,7 +220,7 @@ export const RunHudScreen: React.FC<RunHudScreenProps> = ({
             <Text
               style={[
                 styles.segmentCounter,
-                isInOpenRun && { color: '#00F0FF' },
+                isInOpenRun && { color: '#C8FF00' },
                 isWalkingRecovery && { color: '#FF9800' },
               ]}
             >
@@ -251,7 +251,7 @@ export const RunHudScreen: React.FC<RunHudScreenProps> = ({
                 styles.progressFill,
                 {
                   width: isInOpenRun || isWalkingRecovery ? '100%' : `${segProgressPct}%`,
-                  backgroundColor: isWalkingRecovery ? '#FF9800' : isInOpenRun ? '#00F0FF' : ambientColor,
+                  backgroundColor: isWalkingRecovery ? '#FF9800' : isInOpenRun ? '#C8FF00' : ambientColor,
                 },
               ]}
             />
@@ -412,7 +412,7 @@ export const RunHudScreen: React.FC<RunHudScreenProps> = ({
           <View style={styles.metricCard}>
             <Text style={styles.metricLabel}>QUÃNG ĐƯỜNG</Text>
             <View style={styles.metricValRow}>
-              <Text style={[styles.metricBigVal, { color: '#00F0FF' }]}>{(totalDistanceMeters / 1000).toFixed(2)}</Text>
+              <Text style={[styles.metricBigVal, { color: '#C8FF00' }]}>{(totalDistanceMeters / 1000).toFixed(2)}</Text>
               <Text style={styles.metricUnit}>KM</Text>
             </View>
           </View>
@@ -440,7 +440,7 @@ export const RunHudScreen: React.FC<RunHudScreenProps> = ({
           <View style={styles.subMetricChip}>
             <Text style={styles.subMetricLabel}>TỰ ĐỘNG DỪNG (AUTO-PAUSE)</Text>
             <TouchableOpacity onPress={toggleAutoPause}>
-              <Text style={[styles.subMetricVal, { color: autoPauseEnabled ? '#00F0FF' : '#64748B' }]}>
+              <Text style={[styles.subMetricVal, { color: autoPauseEnabled ? '#C8FF00' : '#64748B' }]}>
                 {autoPauseEnabled ? 'BẬT (DỪNG KHI NGHỈ)' : 'TẮT'}
               </Text>
             </TouchableOpacity>
@@ -703,7 +703,7 @@ export const RunHudScreen: React.FC<RunHudScreenProps> = ({
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#07090D',
+    backgroundColor: '#08090C',
   },
   container: {
     padding: 16,
@@ -718,11 +718,11 @@ const styles = StyleSheet.create({
   backBtn: {
     paddingVertical: 6,
     paddingHorizontal: 10,
-    backgroundColor: '#10141D',
+    backgroundColor: '#111218',
     borderRadius: 10,
   },
   backBtnText: {
-    color: '#00F0FF',
+    color: '#C8FF00',
     fontSize: 12,
     fontWeight: '800',
   },
@@ -735,15 +735,15 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   goalPill: {
-    backgroundColor: '#D2FF0022',
+    backgroundColor: 'rgba(200,255,0,0.13)',
     borderWidth: 1,
-    borderColor: '#D2FF0066',
+    borderColor: '#C8FF0066',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
   },
   goalPillText: {
-    color: '#D2FF00',
+    color: '#C8FF00',
     fontSize: 10,
     fontWeight: '900',
   },
@@ -751,12 +751,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#10141D',
+    backgroundColor: '#111218',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#1E2534',
+    borderColor: '#252838',
   },
   bleDot: {
     width: 7,
@@ -764,7 +764,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   bleDotOn: {
-    backgroundColor: '#00F0FF',
+    backgroundColor: '#C8FF00',
   },
   bleDotOff: {
     backgroundColor: '#475569',
@@ -800,15 +800,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   segmentCard: {
-    backgroundColor: '#10141D',
+    backgroundColor: '#111218',
     borderRadius: 16,
     padding: 14,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: '#1E2534',
+    borderColor: '#252838',
   },
   segmentCardOpenRun: {
-    borderColor: '#00F0FF',
+    borderColor: '#C8FF00',
     backgroundColor: '#071520',
   },
   segmentCardRecovery: {
@@ -821,7 +821,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   segmentCounter: {
-    color: '#D2FF00',
+    color: '#C8FF00',
     fontSize: 11,
     fontWeight: '900',
     letterSpacing: 0.5,
@@ -839,7 +839,7 @@ const styles = StyleSheet.create({
   },
   progressTrack: {
     height: 6,
-    backgroundColor: '#1E2534',
+    backgroundColor: '#252838',
     borderRadius: 3,
     overflow: 'hidden',
   },
@@ -851,7 +851,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#141824',
     borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: '#00F0FF',
+    borderColor: '#C8FF00',
     padding: 16,
     marginBottom: 16,
   },
@@ -862,13 +862,13 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   checkInTagBadge: {
-    backgroundColor: '#00F0FF22',
+    backgroundColor: 'rgba(200,255,0,0.13)',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
   },
   checkInTagText: {
-    color: '#00F0FF',
+    color: '#C8FF00',
     fontSize: 11,
     fontWeight: '900',
   },
@@ -913,7 +913,7 @@ const styles = StyleSheet.create({
     borderColor: '#FFB020',
   },
   checkInBtnVolt: {
-    backgroundColor: '#D2FF00',
+    backgroundColor: '#C8FF00',
   },
   checkInBtnIcon: {
     fontSize: 22,
@@ -932,10 +932,10 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   textDark: {
-    color: '#07090D',
+    color: '#08090C',
   },
   heroPaceCard: {
-    backgroundColor: '#10141D',
+    backgroundColor: '#111218',
     borderRadius: 24,
     borderWidth: 2,
     padding: 20,
@@ -961,7 +961,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   zoneStatusBadgeText: {
-    color: '#07090D',
+    color: '#08090C',
     fontSize: 10,
     fontWeight: '900',
   },
@@ -1005,27 +1005,27 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   resumeRunBtn: {
-    backgroundColor: '#D2FF00',
+    backgroundColor: '#C8FF00',
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: 'center',
   },
   resumeRunBtnText: {
-    color: '#07090D',
+    color: '#08090C',
     fontSize: 13,
     fontWeight: '900',
   },
   askPtBtn: {
-    backgroundColor: '#10141D',
+    backgroundColor: '#111218',
     borderWidth: 1,
-    borderColor: '#1E2534',
+    borderColor: '#252838',
     paddingVertical: 11,
     borderRadius: 14,
     alignItems: 'center',
     marginBottom: 14,
   },
   askPtBtnText: {
-    color: '#00F0FF',
+    color: '#C8FF00',
     fontSize: 12,
     fontWeight: '800',
   },
@@ -1036,11 +1036,11 @@ const styles = StyleSheet.create({
   },
   metricCard: {
     flex: 1,
-    backgroundColor: '#10141D',
+    backgroundColor: '#111218',
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#1E2534',
+    borderColor: '#252838',
   },
   metricCardDanger: {
     borderColor: '#FF3B5C',
@@ -1076,9 +1076,9 @@ const styles = StyleSheet.create({
   },
   subMetricChip: {
     flex: 1,
-    backgroundColor: '#10141D',
+    backgroundColor: '#111218',
     borderWidth: 1,
-    borderColor: '#1E2534',
+    borderColor: '#252838',
     borderRadius: 12,
     padding: 10,
   },
@@ -1094,11 +1094,11 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   controlsCard: {
-    backgroundColor: '#10141D',
+    backgroundColor: '#111218',
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#1E2534',
+    borderColor: '#252838',
     marginBottom: 14,
     gap: 12,
   },
@@ -1129,10 +1129,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   goalActionBtnGhost: {
-    backgroundColor: '#1E2534',
+    backgroundColor: '#252838',
   },
   goalActionText: {
-    color: '#07090D',
+    color: '#08090C',
     fontSize: 11,
     fontWeight: '900',
   },
@@ -1150,7 +1150,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 8,
-    backgroundColor: '#1E2534',
+    backgroundColor: '#252838',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1160,13 +1160,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   pillToggle: {
-    backgroundColor: '#1E2534',
+    backgroundColor: '#252838',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
   },
   pillToggleVolt: {
-    backgroundColor: '#00F0FF',
+    backgroundColor: '#C8FF00',
   },
   pillToggleText: {
     color: '#94A3B8',
@@ -1180,15 +1180,15 @@ const styles = StyleSheet.create({
   },
   testBtn: {
     flex: 1,
-    backgroundColor: '#10141D',
+    backgroundColor: '#111218',
     borderWidth: 1,
-    borderColor: '#1E2534',
+    borderColor: '#252838',
     paddingVertical: 9,
     borderRadius: 10,
     alignItems: 'center',
   },
   testBtnActive: {
-    borderColor: '#00F0FF',
+    borderColor: '#C8FF00',
     backgroundColor: '#071520',
   },
   testBtnText: {
@@ -1197,15 +1197,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   completedCard: {
-    backgroundColor: '#10141D',
+    backgroundColor: '#111218',
     borderRadius: 20,
     borderWidth: 1.5,
-    borderColor: '#D2FF00',
+    borderColor: '#C8FF00',
     padding: 18,
     marginBottom: 20,
   },
   completedHeader: {
-    color: '#D2FF00',
+    color: '#C8FF00',
     fontSize: 18,
     fontWeight: '900',
     textAlign: 'center',
@@ -1217,7 +1217,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingBottom: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#1E2534',
+    borderBottomColor: '#252838',
   },
   completedCol: {
     alignItems: 'center',
@@ -1252,12 +1252,12 @@ const styles = StyleSheet.create({
     width: 28,
     height: 32,
     borderRadius: 6,
-    backgroundColor: '#1E2534',
+    backgroundColor: '#252838',
     justifyContent: 'center',
     alignItems: 'center',
   },
   rpeBtnSelected: {
-    backgroundColor: '#D2FF00',
+    backgroundColor: '#C8FF00',
   },
   rpeBtnText: {
     color: '#94A3B8',
@@ -1265,23 +1265,23 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   rpeBtnTextSelected: {
-    color: '#07090D',
+    color: '#08090C',
   },
   postRunNoteForm: {
     marginBottom: 16,
     gap: 8,
   },
   noteFormTitle: {
-    color: '#00F0FF',
+    color: '#C8FF00',
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 0.5,
     marginBottom: 2,
   },
   noteInput: {
-    backgroundColor: '#07090D',
+    backgroundColor: '#08090C',
     borderWidth: 1,
-    borderColor: '#1E2534',
+    borderColor: '#252838',
     borderRadius: 10,
     color: '#F8FAFC',
     fontSize: 12,
@@ -1290,19 +1290,19 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   returnHomeBtn: {
-    backgroundColor: '#00F0FF',
+    backgroundColor: '#C8FF00',
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
     marginBottom: 10,
   },
   returnHomeBtnText: {
-    color: '#07090D',
+    color: '#08090C',
     fontSize: 13,
     fontWeight: '900',
   },
   restartBtn: {
-    backgroundColor: '#1E2534',
+    backgroundColor: '#252838',
     paddingVertical: 11,
     borderRadius: 12,
     alignItems: 'center',
@@ -1313,14 +1313,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   giantVoltStartBtn: {
-    backgroundColor: '#D2FF00',
+    backgroundColor: '#C8FF00',
     paddingVertical: 18,
     borderRadius: 18,
     alignItems: 'center',
     marginVertical: 10,
   },
   giantVoltStartText: {
-    color: '#07090D',
+    color: '#08090C',
     fontSize: 18,
     fontWeight: '900',
     letterSpacing: 1,
@@ -1332,9 +1332,9 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   lapBtn: {
-    backgroundColor: '#1E2534',
+    backgroundColor: '#252838',
     borderWidth: 1,
-    borderColor: '#00F0FF55',
+    borderColor: 'rgba(200,255,0,0.33)',
     paddingVertical: 14,
     paddingHorizontal: 14,
     borderRadius: 14,
@@ -1342,13 +1342,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   lapBtnText: {
-    color: '#00F0FF',
+    color: '#C8FF00',
     fontSize: 13,
     fontWeight: '900',
   },
   pauseBtn: {
     flex: 1,
-    backgroundColor: '#1E2534',
+    backgroundColor: '#252838',
     paddingVertical: 14,
     borderRadius: 14,
     alignItems: 'center',
@@ -1374,10 +1374,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   aiLiveCard: {
-    backgroundColor: '#0c1520',
+    backgroundColor: '#111218',
     borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: '#00F0FF66',
+    borderColor: '#C8FF0066',
     padding: 12,
     marginBottom: 14,
   },
@@ -1388,20 +1388,20 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   aiLiveBadge: {
-    backgroundColor: '#00F0FF22',
+    backgroundColor: 'rgba(200,255,0,0.13)',
     borderWidth: 1,
-    borderColor: '#00F0FF',
+    borderColor: '#C8FF00',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
   },
   aiLiveBadgeText: {
-    color: '#00F0FF',
+    color: '#C8FF00',
     fontSize: 10,
     fontWeight: '900',
   },
   aiLiveStatusText: {
-    color: '#D2FF00',
+    color: '#C8FF00',
     fontSize: 12,
     fontWeight: '800',
     flex: 1,
@@ -1413,13 +1413,13 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   aiVoiceConsultBtn: {
-    backgroundColor: '#D2FF00',
+    backgroundColor: '#C8FF00',
     paddingVertical: 10,
     borderRadius: 10,
     alignItems: 'center',
   },
   aiVoiceConsultBtnText: {
-    color: '#07090D',
+    color: '#08090C',
     fontSize: 12,
     fontWeight: '900',
     letterSpacing: 0.3,

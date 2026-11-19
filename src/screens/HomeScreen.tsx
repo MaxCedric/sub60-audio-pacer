@@ -233,63 +233,88 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        {/* Header Brand */}
-        <View style={styles.brandRow}>
-          <View>
-            <View style={styles.brandTitleRow}>
-              <Text style={styles.brandSub60}>SUB60</Text>
-              <View style={styles.voltPill}>
-                <Text style={styles.voltPillText}>AUDIO PACER</Text>
+
+        {/* ── CONTEST POSTER BENTO: Golden Ratio 1.618:1 ── */}
+        <View style={styles.posterBento}>
+          {/* Left Poster Card (61.8%) */}
+          <View style={styles.posterCard}>
+            <View style={styles.posterRibbonLime}>
+              <Text style={styles.posterRibbonText}>CHALLENGE</Text>
+              <Text style={styles.posterRibbonText}>CHALLENGE</Text>
+            </View>
+            <View style={styles.posterRibbonPurple}>
+              <Text style={styles.posterRibbonPurpleText}>VER 1.0 // 10K</Text>
+            </View>
+            <View style={styles.posterCardMain}>
+              <View style={styles.posterCardTop}>
+                <View style={styles.posterGoalBadge}>
+                  <Text style={styles.posterGoalBadgeText}>{currentGoal.name.toUpperCase()}</Text>
+                </View>
+                <Text style={styles.posterChevs}>❯❯❯</Text>
+              </View>
+              <View style={styles.posterTitleLayer}>
+                <Text style={styles.posterBigTitle}>STARTING</Text>
+                <View style={styles.posterSubRow}>
+                  <Text style={styles.posterDist}>10 KM</Text>
+                  <Text style={styles.posterPace}>{formatPaceMinutesSeconds(currentGoal.targetPaceMinSec)}/km</Text>
+                </View>
               </View>
             </View>
-            <Text style={styles.brandSubtitle}>
-              10 KM RACE • {profile.raceDate} • VO2MAX {profile.vo2Max} • {profile.weightKg} KG
-            </Text>
           </View>
-          <TouchableOpacity
-            style={styles.editProfileBtn}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setIsEditProfileVisible(true);
-            }}
-          >
-            <Text style={styles.editProfileBtnText}>⚙️ CHỈ SỐ & AI</Text>
-          </TouchableOpacity>
+
+          {/* Right Lime Card (38.2%) */}
+          <View style={styles.posterLimeCard}>
+            <View style={styles.posterLimeTop}>
+              <Text style={styles.posterLimeTopLabel}>FINALS</Text>
+              <View style={styles.liveChip}><Text style={styles.liveChipText}>LIVE</Text></View>
+            </View>
+            <View style={styles.posterDaysCircle}>
+              <Text style={styles.posterDaysNum}>59</Text>
+              <Text style={styles.posterDaysLabel}>DAYS</Text>
+            </View>
+            <View style={styles.posterLimeDate}>
+              <Text style={styles.posterLimeDateText}>16.01.2027</Text>
+            </View>
+          </View>
         </View>
 
-        {/* Bento Grid 2 Cột: Watch Fit 4 + Ngưỡng Lactate */}
+        {/* ── GOAL TIER SELECTOR ── */}
+        <View style={styles.goalTierGrid}>
+          {(['sub60', 'sub65', 'under70'] as GoalId[]).map((gId) => {
+            const tier = GOAL_TIERS[gId];
+            const isSelected = gId === selectedGoalId;
+            return (
+              <TouchableOpacity
+                key={gId}
+                style={[styles.tierPill, isSelected && styles.tierPillSelected]}
+                onPress={() => handleSelectGoal(gId)}
+              >
+                <Text style={[styles.tierPillTitle, isSelected && styles.tierPillTitleSelected]}>{tier.name}</Text>
+                <Text style={[styles.tierPillPace, isSelected && styles.tierPillPaceSelected]}>
+                  {formatPaceMinutesSeconds(tier.targetPaceMinSec)}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* ── BLE + LTHR BENTO ── */}
         <View style={styles.bentoRow}>
-          {/* Tile Trái: Kết nối BLE Watch Fit 4 */}
-          <View style={[styles.bentoTile, isBleConnected && styles.bentoTileActiveVolt]}>
+          <View style={[styles.bentoTile, isBleConnected && styles.bentoTileActiveLime]}>
             <View style={styles.tileHeader}>
-              <View
-                style={[
-                  styles.statusDot,
-                  isBleConnected
-                    ? styles.dotVolt
-                    : isScanning
-                    ? styles.dotAmber
-                    : styles.dotMuted,
-                ]}
-              />
+              <View style={[styles.statusDot, isBleConnected ? styles.dotLime : isScanning ? styles.dotAmber : styles.dotMuted]} />
               <Text style={styles.tileLabel}>WATCH FIT 4</Text>
             </View>
-
             <View style={styles.hrReadoutRow}>
               <Text style={styles.hrBigValue}>{heartRate ?? '--'}</Text>
               <Text style={styles.hrUnit}>BPM</Text>
             </View>
-
             <Text style={styles.tileSubText} numberOfLines={1}>
               {isBleConnected ? deviceName || 'Đã kết nối BLE' : isScanning ? 'Đang quét...' : 'Chưa kết nối'}
             </Text>
-
             <TouchableOpacity
-              style={[styles.tileBtn, isBleConnected ? styles.tileBtnGhost : styles.tileBtnVolt]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                isBleConnected ? onDisconnectBle() : onScanBle();
-              }}
+              style={[styles.tileBtn, isBleConnected ? styles.tileBtnGhost : styles.tileBtnLime]}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); isBleConnected ? onDisconnectBle() : onScanBle(); }}
             >
               <Text style={[styles.tileBtnText, !isBleConnected && styles.tileBtnTextDark]}>
                 {isBleConnected ? 'Ngắt kết nối' : 'Kết nối BLE'}
@@ -297,13 +322,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </TouchableOpacity>
           </View>
 
-          {/* Tile Phải: Ngưỡng Lactate linh hoạt */}
           <View style={styles.bentoTile}>
             <View style={styles.tileHeader}>
               <View style={[styles.statusDot, styles.dotCoral]} />
               <Text style={styles.tileLabel}>NGƯỠNG LACTATE</Text>
             </View>
-
             <View style={styles.lthrStepperRow}>
               <TouchableOpacity style={styles.stepBtn} onPress={() => handleAdjustLtHr(-1)}>
                 <Text style={styles.stepBtnText}>−</Text>
@@ -313,11 +336,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 <Text style={styles.stepBtnText}>+</Text>
               </TouchableOpacity>
             </View>
-
             <Text style={styles.tileSubText}>
               Pace LT: {formatPaceMinutesSeconds(profile.lactateThresholdPaceSecPerKm)} • Max: {profile.maxHrBpm} bpm
             </Text>
-
             <View style={styles.simMiniRow}>
               <TouchableOpacity
                 style={[styles.simMiniBtn, isSimulatedBle && styles.simMiniBtnActive]}
@@ -325,10 +346,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               >
                 <Text style={styles.simMiniText}>{isSimulatedBle ? 'Tắt Sim' : 'Sim HR'}</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.simMiniDangerBtn}
-                onPress={() => onToggleSimBle(true)}
-              >
+              <TouchableOpacity style={styles.simMiniDangerBtn} onPress={() => onToggleSimBle(true)}>
                 <Text style={styles.simMiniDangerText}>Test 180</Text>
               </TouchableOpacity>
             </View>
@@ -336,72 +354,25 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </View>
 
         {bleError ? (
-          <View style={styles.errorPill}>
-            <Text style={styles.errorPillText}>{bleError}</Text>
-          </View>
+          <View style={styles.errorPill}><Text style={styles.errorPillText}>{bleError}</Text></View>
         ) : null}
 
-        {/* Khối Lựa chọn 3 Bậc Mục tiêu (Goal Tiers) */}
-        <View style={styles.goalSelectionCard}>
-          <View style={styles.goalCardHeader}>
-            <Text style={styles.goalCardTitle}>MỤC TIÊU RACE 10 KM</Text>
-            <View style={styles.activeGoalBadge}>
-              <Text style={styles.activeGoalBadgeText}>{currentGoal.name.toUpperCase()}</Text>
-            </View>
-          </View>
-
-          <View style={styles.goalTiersRow}>
-            {(['sub60', 'sub65', 'under70'] as GoalId[]).map((gId) => {
-              const tier = GOAL_TIERS[gId];
-              const isSelected = gId === selectedGoalId;
-              return (
-                <TouchableOpacity
-                  key={gId}
-                  style={[styles.tierBtn, isSelected && styles.tierBtnSelected]}
-                  onPress={() => handleSelectGoal(gId)}
-                >
-                  <Text style={[styles.tierBtnTitle, isSelected && styles.tierBtnTitleSelected]}>
-                    {tier.name}
-                  </Text>
-                  <Text style={[styles.tierBtnPace, isSelected && styles.tierBtnPaceSelected]}>
-                    {formatPaceMinutesSeconds(tier.targetPaceMinSec)}–{formatPaceMinutesSeconds(tier.targetPaceMaxSec)}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          {/* Riegel Note */}
-          <View style={styles.riegelNoteBox}>
-            <Text style={styles.riegelNoteIcon}>ℹ️</Text>
-            <Text style={styles.riegelNoteText}>{RIEGEL_NOTE_TEXT}</Text>
-          </View>
-        </View>
-
-        {/* ======================================================== */}
-        {/* SECTION MỚI: CHẠY NGẪU HỨNG (AI PT TỰ ĐỘNG SINH BÀI TẬP) */}
-        {/* ======================================================== */}
+        {/* ── ADAPTIVE AI SECTION ── */}
         <View style={styles.adaptiveSection}>
-          <View style={styles.adaptiveHeader}>
-            <View style={styles.adaptiveTitleRow}>
-              <Text style={styles.adaptiveSectionTitle}>⚡ HỨNG LÊN LÀ CHẠY — AI PT ĐỀ XUẤT</Text>
-              <View style={styles.aiBadge}>
-                <Text style={styles.aiBadgeText}>AI ADAPTIVE</Text>
-              </View>
-            </View>
-            <Text style={styles.adaptiveSectionSub}>
-              Tự động phân tích lịch tuần (T3 Cầu lông, T5 Chất lượng, T7 Chạy dài) và thể lực tuần này để suy nghĩ bài chạy thích hợp nhất cho bạn.
-            </Text>
+          <View style={styles.adaptiveTitleRow}>
+            <Text style={styles.adaptiveSectionTitle}>⚡ HỨNG LÊN LÀ CHẠY — AI PT ĐỀ XUẤT</Text>
+            <View style={styles.aiBadge}><Text style={styles.aiBadgeText}>AI ADAPTIVE</Text></View>
           </View>
+          <Text style={styles.adaptiveSectionSub}>
+            Tự động phân tích lịch tuần và thể lực để đề xuất bài chạy phù hợp nhất.
+          </Text>
 
-          {/* Context Tích Lũy Tuần Này */}
           {adaptiveRec?.weeklyContextSummary ? (
             <View style={styles.contextSummaryChip}>
               <Text style={styles.contextSummaryText}>📊 {adaptiveRec.weeklyContextSummary}</Text>
             </View>
           ) : null}
 
-          {/* Selector Cảm Giác Thể Trạng Hôm Nay */}
           <Text style={styles.feelingPromptText}>Hôm nay bạn cảm thấy thế nào?</Text>
           <View style={styles.feelingPillsRow}>
             {[
@@ -417,15 +388,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   style={[styles.feelingPill, isSelected && styles.feelingPillActive]}
                   onPress={() => handleSelectFeeling(f.id as RunnerFeeling)}
                 >
-                  <Text style={[styles.feelingPillText, isSelected && styles.textDark]}>
-                    {f.label}
-                  </Text>
+                  <Text style={[styles.feelingPillText, isSelected && styles.textDark]}>{f.label}</Text>
                 </TouchableOpacity>
               );
             })}
           </View>
 
-          {/* Thẻ Bài Tập AI Đề Xuất */}
           {adaptiveRec ? (
             <View style={styles.adaptiveCard}>
               <View style={styles.adaptiveCardTop}>
@@ -434,75 +402,60 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 </View>
                 <Text style={styles.adaptiveDistText}>{adaptiveRec.workout.totalDistanceKm} KM</Text>
               </View>
-
               <Text style={styles.adaptiveWorkoutTitle}>{adaptiveRec.workout.title}</Text>
               <Text style={styles.adaptiveReasonText}>{adaptiveRec.reasoning}</Text>
-
               <View style={styles.aiQuoteBox}>
                 <Text style={styles.aiQuoteIcon}>💡</Text>
                 <Text style={styles.aiQuoteText}>{adaptiveRec.aiSuggestedQuote}</Text>
               </View>
-
-              {/* Các chặng tự động của bài tập */}
               <View style={styles.segmentsBox}>
                 {adaptiveRec.workout.segments.map((seg) => {
                   const resolved = resolvePaceRange(seg as PaceSegmentLike, profile, currentGoal);
                   return (
                     <View key={seg.id} style={styles.segRow}>
-                      <Text style={styles.segName} numberOfLines={1}>
-                        {seg.name}
-                      </Text>
+                      <Text style={styles.segName} numberOfLines={1}>{seg.name}</Text>
                       <Text style={styles.segTarget}>{resolved.displayText}</Text>
                     </View>
                   );
                 })}
               </View>
-
               <TouchableOpacity
-                style={styles.ctaAdaptiveBtn}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-                  onSelectWorkout(adaptiveRec.workout);
-                }}
+                style={styles.ctaLimeBtn}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); onSelectWorkout(adaptiveRec.workout); }}
               >
-                <Text style={styles.ctaAdaptiveBtnText}>CHẠY BÀI NÀY NGAY VỚI AUDIO COACH</Text>
+                <Text style={styles.ctaLimeBtnText}>CHẠY BÀI NÀY NGAY VỚI AUDIO COACH</Text>
               </TouchableOpacity>
             </View>
           ) : null}
 
-          {/* Khối Hỏi Đáp Trực Tuyến Với AI Huấn Luyện Viên */}
           <View style={styles.aiQaCard}>
             <View style={styles.aiQaHeader}>
-              <Text style={styles.aiQaTitle}>✨ HỎI Ý KIẾN AI HUẤN LUYỆN VIÊN</Text>
-              <Text style={styles.aiQaProviderTag}>
-                {geminiApiKey.trim() ? 'GEMINI 1.5 FLASH LIVE' : 'SMART OFFLINE AI'}
-              </Text>
+              <Text style={styles.aiQaTitle}>💬 HỎI AI HUẤN LUYỆN VIÊN</Text>
+              <Text style={styles.aiQaProviderTag}>{geminiApiKey.trim() ? 'GEMINI LIVE' : 'OFFLINE AI PT'}</Text>
             </View>
-            <Text style={styles.aiQaSub}>
-              Hỏi nhanh thể trạng, dinh dưỡng hay cách chạy trước khi xỏ giày ra đường:
-            </Text>
-
+            <View style={styles.aiQuickQRow}>
+              {['Mỏi bắp chuối?', 'Sau T3 cầu lông?', 'Uống nước nhịp thở?'].map(q => (
+                <TouchableOpacity key={q} style={styles.quickQChip} onPress={() => setAiQuestion(q)}>
+                  <Text style={styles.quickQText}>{q}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
             <View style={styles.aiInputRow}>
               <TextInput
                 style={styles.aiTextInput}
                 value={aiQuestion}
                 onChangeText={setAiQuestion}
-                placeholder="VD: Chân hơi mỏi cơ bắp chuối thì chạy thế nào?"
+                placeholder="Hỏi PT..."
                 placeholderTextColor="#64748B"
               />
-              <TouchableOpacity
-                style={styles.aiSendBtn}
-                onPress={handleAskAiCoach}
-                disabled={isAiThinking}
-              >
+              <TouchableOpacity style={styles.aiSendBtn} onPress={handleAskAiCoach} disabled={isAiThinking}>
                 {isAiThinking ? (
-                  <ActivityIndicator size="small" color="#07090D" />
+                  <ActivityIndicator size="small" color="#08090C" />
                 ) : (
-                  <Text style={styles.aiSendBtnText}>HỎI</Text>
+                  <Text style={styles.aiSendBtnText}>Hỏi</Text>
                 )}
               </TouchableOpacity>
             </View>
-
             {aiAnswer ? (
               <View style={styles.aiAnswerBox}>
                 <Text style={styles.aiAnswerTitle}>🤖 LỜI KHUYÊN TỪ AI PT:</Text>
@@ -512,48 +465,34 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </View>
         </View>
 
-        {/* Thanh chọn Tuần (Pill Carousel) */}
+        {/* ── WEEK SELECTOR ── */}
         <View style={styles.sectionHeaderRow}>
           <View>
-            <Text style={styles.sectionTitle}>GIÁO ÁN 9 TUẦN CHINH PHỤC</Text>
+            <Text style={styles.sectionTitle}>📅 LỊCH TẬP 9 TUẦN CHINH PHỤC</Text>
             <Text style={styles.sectionHint}>T3 Cầu lông • T5/T7 Chạy chính</Text>
           </View>
-
-          {/* Toggle bài tập chủ nhật tùy chọn */}
           <View style={styles.sundayToggleRow}>
             <Text style={styles.sundayToggleLabel}>CN tùy chọn</Text>
             <Switch
               value={includeSunday}
-              onValueChange={(val) => {
-                Haptics.selectionAsync();
-                setIncludeSunday(val);
-              }}
-              trackColor={{ false: '#1E2534', true: '#00F0FF' }}
-              thumbColor={includeSunday ? '#07090D' : '#64748B'}
+              onValueChange={(val) => { Haptics.selectionAsync(); setIncludeSunday(val); }}
+              trackColor={{ false: '#252838', true: '#C8FF00' }}
+              thumbColor={includeSunday ? '#08090C' : '#64748B'}
               style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
             />
           </View>
         </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.weekPillsRow}
-        >
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.weekPillsRow}>
           {weeks.map((week, idx) => {
             const isSelected = idx === selectedWeekIndex;
             return (
               <TouchableOpacity
                 key={week.weekNumber}
                 style={[styles.weekPill, isSelected && styles.weekPillActive]}
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  setSelectedWeekIndex(idx);
-                }}
+                onPress={() => { Haptics.selectionAsync(); setSelectedWeekIndex(idx); }}
               >
-                <Text style={[styles.weekPillNum, isSelected && styles.weekPillTextDark]}>
-                  T{week.weekNumber}
-                </Text>
+                <Text style={[styles.weekPillNum, isSelected && styles.weekPillTextDark]}>T{week.weekNumber}</Text>
                 <Text style={[styles.weekPillDate, isSelected && styles.weekPillDateDark]}>
                   {week.dateRange.split(' - ')[0].slice(0, 5)}
                 </Text>
@@ -562,180 +501,102 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           })}
         </ScrollView>
 
-        {/* Banner trọng tâm tuần */}
         <View style={styles.focusCard}>
           <Text style={styles.focusDate}>{activeWeek.dateRange}</Text>
           <Text style={styles.focusText}>{activeWeek.focus}</Text>
         </View>
 
-        {/* Danh sách buổi chạy trong tuần */}
+        {/* ── WORKOUT CARDS ── */}
         {visibleWorkouts.map((workout: any) => {
           const isSunday = Boolean(workout.isOptional || workout.dayOfWeek?.toLowerCase().includes('nhật'));
-
+          const isCheckpoint = workout.type === 'Checkpoint';
           return (
-            <View key={workout.id} style={styles.workoutCard}>
+            <View key={workout.id} style={[styles.workoutCard, isCheckpoint && styles.workoutCardCheckpoint]}>
               <View style={styles.workoutMetaRow}>
                 <View style={styles.workoutBadgesLeft}>
-                  <View
-                    style={[
-                      styles.dayChip,
-                      isSunday && styles.dayChipOptional,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.dayChipText,
-                        isSunday && styles.dayChipTextOptional,
-                      ]}
-                    >
-                      {isSunday
-                        ? 'CN (TÙY CHỌN)'
-                        : workout.dayOfWeek?.toUpperCase()}
+                  <View style={[styles.dayChip, isSunday && styles.dayChipOptional, isCheckpoint && styles.dayChipCheckpoint]}>
+                    <Text style={[styles.dayChipText, isSunday && styles.dayChipTextOptional, isCheckpoint && styles.dayChipTextCheckpoint]}>
+                      {isSunday ? 'CN (TÙY CHỌN)' : workout.dayOfWeek?.toUpperCase()}
                     </Text>
                   </View>
-                  <Text style={styles.workoutDate}>{workout.date}</Text>
                 </View>
-                <View style={styles.kmBadge}>
-                  <Text style={styles.kmBadgeText}>{workout.totalDistanceKm} KM</Text>
+                <View style={[styles.kmBadge, isCheckpoint && styles.kmBadgePurple]}>
+                  <Text style={[styles.kmBadgeText, isCheckpoint && styles.kmBadgeTextPurple]}>{workout.totalDistanceKm} KM</Text>
                 </View>
               </View>
 
-              <Text style={styles.workoutTitle}>{workout.title}</Text>
+              <Text style={[styles.workoutTitle, isCheckpoint && styles.workoutTitleCheckpoint]}>{workout.title}</Text>
               <Text style={styles.workoutDesc}>{workout.description}</Text>
 
-              {/* Chặng tự động tính pace từ chỉ số VĐV */}
               <View style={styles.segmentsBox}>
                 {workout.segments.slice(0, 4).map((seg: any) => {
                   const resolved = resolvePaceRange(seg as PaceSegmentLike, profile, currentGoal);
-                  const paceDisplay = resolved.displayText;
-
                   return (
                     <View key={seg.id} style={styles.segRow}>
-                      <Text style={styles.segName} numberOfLines={1}>
-                        {seg.name}
-                      </Text>
-                      <Text style={styles.segTarget}>{paceDisplay}</Text>
+                      <Text style={styles.segName} numberOfLines={1}>{seg.name}</Text>
+                      <Text style={styles.segTarget}>{resolved.displayText}</Text>
                     </View>
                   );
                 })}
                 {workout.segments.length > 4 ? (
-                  <Text style={styles.moreSegText}>
-                    + {workout.segments.length - 4} chặng tự động tiếp theo
-                  </Text>
+                  <Text style={styles.moreSegText}>+ {workout.segments.length - 4} chặng tiếp theo</Text>
                 ) : null}
               </View>
 
               <TouchableOpacity
-                style={styles.ctaVoltBtn}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-                  onSelectWorkout(workout as unknown as WorkoutPlan);
-                }}
+                style={[styles.ctaLimeBtn, isCheckpoint && styles.ctaPurpleBtn]}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); onSelectWorkout(workout as unknown as WorkoutPlan); }}
               >
-                <Text style={styles.ctaVoltBtnText}>CHẠY NGAY VỚI AUDIO COACH</Text>
+                <Text style={[styles.ctaLimeBtnText, isCheckpoint && styles.ctaPurpleBtnText]}>
+                  {isCheckpoint ? '🏆 CHẠY BÀI TEST CHECKPOINT' : 'CHẠY NGAY VỚI AUDIO COACH'}
+                </Text>
               </TouchableOpacity>
             </View>
           );
         })}
+
+        <TouchableOpacity
+          style={styles.editProfileBtnFull}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setIsEditProfileVisible(true); }}
+        >
+          <Text style={styles.editProfileBtnFullText}>⚙️ CHỈNH SỬA CHỈ SỐ VẬN ĐỘNG VIÊN</Text>
+        </TouchableOpacity>
+
       </ScrollView>
 
-      {/* Modal Cập Nhật Chỉ Số VĐV & Cấu hình AI Key */}
-      <Modal
-        visible={isEditProfileVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setIsEditProfileVisible(false)}
-      >
+      <Modal visible={isEditProfileVisible} animationType="slide" transparent={true} onRequestClose={() => setIsEditProfileVisible(false)}>
         <SafeAreaView style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>CẬP NHẬT CHỈ SỐ & CẤU HÌNH AI</Text>
-              <TouchableOpacity
-                onPress={() => setIsEditProfileVisible(false)}
-                style={styles.modalCloseBtn}
-              >
+              <TouchableOpacity onPress={() => setIsEditProfileVisible(false)} style={styles.modalCloseBtn}>
                 <Text style={styles.modalCloseText}>✕</Text>
               </TouchableOpacity>
             </View>
-            <Text style={styles.modalDesc}>
-              Khi lưu, toàn bộ giáo án sẽ tự động tính lại vùng nhịp tim và pace tập luyện tương ứng.
-            </Text>
-
+            <Text style={styles.modalDesc}>Khi lưu, toàn bộ giáo án sẽ tự động tính lại vùng nhịp tim và pace tập luyện.</Text>
             <ScrollView showsVerticalScrollIndicator={false}>
+              {[
+                { label: 'Pace Ngưỡng Lactate (phút:giây/km):', value: editLtPaceStr, setter: setEditLtPaceStr, placeholder: '7:31', kbType: 'numbers-and-punctuation' as const },
+                { label: 'Nhịp tim Ngưỡng (LTHR bpm):', value: editLtHrStr, setter: setEditLtHrStr, placeholder: '176', kbType: 'numeric' as const },
+                { label: 'Nhịp tim Tối đa (HRmax bpm):', value: editMaxHrStr, setter: setEditMaxHrStr, placeholder: '195', kbType: 'numeric' as const },
+                { label: 'Kết quả Test 3 km (phút:giây):', value: editTest3kStr, setter: setEditTest3kStr, placeholder: '21:08', kbType: 'numbers-and-punctuation' as const },
+                { label: 'VO2max:', value: editVo2MaxStr, setter: setEditVo2MaxStr, placeholder: '35', kbType: 'numeric' as const },
+                { label: 'Cân nặng (kg):', value: editWeightStr, setter: setEditWeightStr, placeholder: '73.7', kbType: 'numbers-and-punctuation' as const },
+              ].map(field => (
+                <View key={field.label} style={styles.formRow}>
+                  <Text style={styles.formLabel}>{field.label}</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    value={field.value}
+                    onChangeText={field.setter}
+                    placeholder={field.placeholder}
+                    placeholderTextColor="#64748B"
+                    keyboardType={field.kbType}
+                  />
+                </View>
+              ))}
               <View style={styles.formRow}>
-                <Text style={styles.formLabel}>Pace Ngưỡng Lactate (phút:giây/km):</Text>
-                <TextInput
-                  style={styles.formInput}
-                  value={editLtPaceStr}
-                  onChangeText={setEditLtPaceStr}
-                  placeholder="7:31"
-                  placeholderTextColor="#64748B"
-                  keyboardType="numbers-and-punctuation"
-                />
-              </View>
-
-              <View style={styles.formRow}>
-                <Text style={styles.formLabel}>Nhịp tim Ngưỡng (LTHR bpm):</Text>
-                <TextInput
-                  style={styles.formInput}
-                  value={editLtHrStr}
-                  onChangeText={setEditLtHrStr}
-                  placeholder="176"
-                  placeholderTextColor="#64748B"
-                  keyboardType="numeric"
-                />
-              </View>
-
-              <View style={styles.formRow}>
-                <Text style={styles.formLabel}>Nhịp tim Tối đa (HRmax bpm):</Text>
-                <TextInput
-                  style={styles.formInput}
-                  value={editMaxHrStr}
-                  onChangeText={setEditMaxHrStr}
-                  placeholder="195"
-                  placeholderTextColor="#64748B"
-                  keyboardType="numeric"
-                />
-              </View>
-
-              <View style={styles.formRow}>
-                <Text style={styles.formLabel}>Kết quả Test 3 km (phút:giây):</Text>
-                <TextInput
-                  style={styles.formInput}
-                  value={editTest3kStr}
-                  onChangeText={setEditTest3kStr}
-                  placeholder="21:08"
-                  placeholderTextColor="#64748B"
-                  keyboardType="numbers-and-punctuation"
-                />
-              </View>
-
-              <View style={styles.formRow}>
-                <Text style={styles.formLabel}>VO2max:</Text>
-                <TextInput
-                  style={styles.formInput}
-                  value={editVo2MaxStr}
-                  onChangeText={setEditVo2MaxStr}
-                  placeholder="35"
-                  placeholderTextColor="#64748B"
-                  keyboardType="numeric"
-                />
-              </View>
-
-              <View style={styles.formRow}>
-                <Text style={styles.formLabel}>Cân nặng (kg):</Text>
-                <TextInput
-                  style={styles.formInput}
-                  value={editWeightStr}
-                  onChangeText={setEditWeightStr}
-                  placeholder="73.7"
-                  placeholderTextColor="#64748B"
-                  keyboardType="numbers-and-punctuation"
-                />
-              </View>
-
-              <View style={styles.formRow}>
-                <Text style={styles.formLabel}>Google Gemini API Key (Tùy chọn, miễn phí tại aistudio.google.com):</Text>
+                <Text style={styles.formLabel}>Google Gemini API Key (Tùy chọn):</Text>
                 <TextInput
                   style={styles.formInput}
                   value={editGeminiKeyStr}
@@ -743,17 +604,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   placeholder="Dán Gemini API Key nếu muốn hỏi đáp LLM"
                   placeholderTextColor="#64748B"
                   autoCapitalize="none"
-                  secureTextEntry={false}
                 />
-                <Text style={styles.formSubHint}>
-                  Nếu để trống, app sẽ dùng Trợ lý AI Offline thông minh tích hợp sẵn, không tốn phí và không cần mạng.
-                </Text>
+                <Text style={styles.formSubHint}>Nếu để trống, app dùng Trợ lý AI Offline tích hợp sẵn.</Text>
               </View>
-
-              <TouchableOpacity
-                style={styles.saveProfileBtn}
-                onPress={handleSaveProfileModal}
-              >
+              <TouchableOpacity style={styles.saveProfileBtn} onPress={handleSaveProfileModal}>
                 <Text style={styles.saveProfileBtnText}>LƯU VÀ TÍNH LẠI GIÁO ÁN</Text>
               </TouchableOpacity>
             </ScrollView>
@@ -784,826 +638,197 @@ function parseMmSsToSeconds(str: string, fallback: number): number {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#07090D',
-  },
-  container: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  brandRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  brandTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  brandSub60: {
-    color: '#F8FAFC',
-    fontSize: 26,
-    fontWeight: '900',
-    letterSpacing: -0.5,
-  },
-  voltPill: {
-    backgroundColor: '#00F0FF',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  voltPillText: {
-    color: '#07090D',
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 0.6,
-  },
-  brandSubtitle: {
-    color: '#64748B',
-    fontSize: 11,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  editProfileBtn: {
-    backgroundColor: '#10141D',
-    borderWidth: 1,
-    borderColor: '#1E2534',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-  },
-  editProfileBtnText: {
-    color: '#00F0FF',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  bentoRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
-  },
-  bentoTile: {
-    flex: 1,
-    backgroundColor: '#10141D',
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#1E2534',
-    justifyContent: 'space-between',
-  },
-  bentoTileActiveVolt: {
-    borderColor: '#00F0FF33',
-    backgroundColor: '#0c1520',
-  },
-  tileHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  dotVolt: {
-    backgroundColor: '#00F0FF',
-  },
-  dotCoral: {
-    backgroundColor: '#FF3B5C',
-  },
-  dotAmber: {
-    backgroundColor: '#FFB020',
-  },
-  dotMuted: {
-    backgroundColor: '#475569',
-  },
-  tileLabel: {
-    color: '#94A3B8',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  hrReadoutRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 4,
-    marginVertical: 4,
-  },
-  hrBigValue: {
-    color: '#F8FAFC',
-    fontSize: 32,
-    fontWeight: '900',
-    fontVariant: ['tabular-nums'],
-  },
-  hrUnit: {
-    color: '#64748B',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  lthrStepperRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginVertical: 4,
-  },
-  stepBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#1E2534',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  stepBtnText: {
-    color: '#F8FAFC',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  lthrBigValue: {
-    color: '#D2FF00',
-    fontSize: 28,
-    fontWeight: '900',
-    fontVariant: ['tabular-nums'],
-  },
-  tileSubText: {
-    color: '#64748B',
-    fontSize: 10,
-    fontWeight: '600',
-    marginBottom: 6,
-  },
-  tileBtn: {
-    paddingVertical: 8,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  tileBtnVolt: {
-    backgroundColor: '#00F0FF',
-  },
-  tileBtnGhost: {
-    backgroundColor: '#1E2534',
-  },
-  tileBtnText: {
-    color: '#F8FAFC',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  tileBtnTextDark: {
-    color: '#07090D',
-  },
-  simMiniRow: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  simMiniBtn: {
-    flex: 1,
-    backgroundColor: '#1E2534',
-    paddingVertical: 6,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  simMiniBtnActive: {
-    backgroundColor: '#00F0FF33',
-    borderWidth: 1,
-    borderColor: '#00F0FF',
-  },
-  simMiniText: {
-    color: '#94A3B8',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  simMiniDangerBtn: {
-    backgroundColor: '#FF3B5C22',
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#FF3B5C66',
-    alignItems: 'center',
-  },
-  simMiniDangerText: {
-    color: '#FF3B5C',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  errorPill: {
-    backgroundColor: '#FF3B5C22',
-    borderColor: '#FF3B5C55',
-    borderWidth: 1,
-    padding: 10,
-    borderRadius: 12,
-    marginBottom: 16,
-  },
-  errorPillText: {
-    color: '#FF6B8B',
-    fontSize: 12,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  goalSelectionCard: {
-    backgroundColor: '#10141D',
-    borderWidth: 1,
-    borderColor: '#1E2534',
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 16,
-  },
-  goalCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  goalCardTitle: {
-    color: '#94A3B8',
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.6,
-  },
-  activeGoalBadge: {
-    backgroundColor: '#D2FF0022',
-    borderColor: '#D2FF00',
-    borderWidth: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  activeGoalBadgeText: {
-    color: '#D2FF00',
-    fontSize: 10,
-    fontWeight: '900',
-  },
-  goalTiersRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 10,
-  },
-  tierBtn: {
-    flex: 1,
-    backgroundColor: '#0A0D14',
-    borderWidth: 1,
-    borderColor: '#1E2534',
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 6,
-    alignItems: 'center',
-  },
-  tierBtnSelected: {
-    borderColor: '#D2FF00',
-    backgroundColor: '#1b260d',
-  },
-  tierBtnTitle: {
-    color: '#94A3B8',
-    fontSize: 12,
-    fontWeight: '800',
-    marginBottom: 3,
-  },
-  tierBtnTitleSelected: {
-    color: '#D2FF00',
-  },
-  tierBtnPace: {
-    color: '#64748B',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  tierBtnPaceSelected: {
-    color: '#F8FAFC',
-  },
-  riegelNoteBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#0c1520',
-    borderRadius: 10,
-    padding: 10,
-    gap: 8,
-    borderWidth: 1,
-    borderColor: '#00F0FF22',
-  },
-  riegelNoteIcon: {
-    fontSize: 14,
-  },
-  riegelNoteText: {
-    flex: 1,
-    color: '#94A3B8',
-    fontSize: 11,
-    lineHeight: 16,
-    fontWeight: '500',
-  },
-  adaptiveSection: {
-    backgroundColor: '#10141D',
-    borderWidth: 1.5,
-    borderColor: '#00F0FF55',
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 20,
-  },
-  adaptiveHeader: {
-    marginBottom: 10,
-  },
-  adaptiveTitleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  adaptiveSectionTitle: {
-    color: '#00F0FF',
-    fontSize: 14,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-  aiBadge: {
-    backgroundColor: '#00F0FF22',
-    borderWidth: 1,
-    borderColor: '#00F0FF',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  aiBadgeText: {
-    color: '#00F0FF',
-    fontSize: 9,
-    fontWeight: '900',
-  },
-  adaptiveSectionSub: {
-    color: '#94A3B8',
-    fontSize: 11,
-    lineHeight: 16,
-  },
-  contextSummaryChip: {
-    backgroundColor: '#07090D',
-    borderWidth: 1,
-    borderColor: '#1E2534',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    marginBottom: 12,
-  },
-  contextSummaryText: {
-    color: '#D2FF00',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  feelingPromptText: {
-    color: '#F8FAFC',
-    fontSize: 12,
-    fontWeight: '800',
-    marginBottom: 8,
-  },
-  feelingPillsRow: {
-    flexDirection: 'row',
-    gap: 6,
-    marginBottom: 14,
-  },
-  feelingPill: {
-    flex: 1,
-    backgroundColor: '#07090D',
-    borderWidth: 1,
-    borderColor: '#1E2534',
-    paddingVertical: 8,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  feelingPillActive: {
-    backgroundColor: '#00F0FF',
-    borderColor: '#00F0FF',
-  },
-  feelingPillText: {
-    color: '#94A3B8',
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  textDark: {
-    color: '#07090D',
-  },
-  adaptiveCard: {
-    backgroundColor: '#0A0D14',
-    borderWidth: 1,
-    borderColor: '#1E2534',
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 14,
-  },
-  adaptiveCardTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  recTypeBadge: {
-    backgroundColor: '#D2FF0022',
-    borderWidth: 1,
-    borderColor: '#D2FF00',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  recTypeBadgeText: {
-    color: '#D2FF00',
-    fontSize: 10,
-    fontWeight: '900',
-  },
-  adaptiveDistText: {
-    color: '#00F0FF',
-    fontSize: 16,
-    fontWeight: '900',
-  },
-  adaptiveWorkoutTitle: {
-    color: '#F8FAFC',
-    fontSize: 16,
-    fontWeight: '900',
-    marginBottom: 6,
-  },
-  adaptiveReasonText: {
-    color: '#94A3B8',
-    fontSize: 12,
-    lineHeight: 17,
-    marginBottom: 10,
-  },
-  aiQuoteBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#10141D',
-    borderRadius: 8,
-    padding: 8,
-    gap: 8,
-    marginBottom: 12,
-    borderLeftWidth: 3,
-    borderLeftColor: '#00F0FF',
-  },
-  aiQuoteIcon: {
-    fontSize: 14,
-  },
-  aiQuoteText: {
-    color: '#F8FAFC',
-    fontSize: 11,
-    fontStyle: 'italic',
-    flex: 1,
-  },
-  ctaAdaptiveBtn: {
-    backgroundColor: '#00F0FF',
-    paddingVertical: 13,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  ctaAdaptiveBtnText: {
-    color: '#07090D',
-    fontSize: 13,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-  aiQaCard: {
-    backgroundColor: '#0A0D14',
-    borderRadius: 14,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#1E2534',
-  },
-  aiQaHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  aiQaTitle: {
-    color: '#D2FF00',
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-  aiQaProviderTag: {
-    color: '#64748B',
-    fontSize: 9,
-    fontWeight: '800',
-  },
-  aiQaSub: {
-    color: '#94A3B8',
-    fontSize: 11,
-    lineHeight: 15,
-    marginBottom: 8,
-  },
-  aiInputRow: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  aiTextInput: {
-    flex: 1,
-    backgroundColor: '#07090D',
-    borderWidth: 1,
-    borderColor: '#1E2534',
-    borderRadius: 10,
-    color: '#F8FAFC',
-    fontSize: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-  },
-  aiSendBtn: {
-    backgroundColor: '#D2FF00',
-    paddingHorizontal: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 10,
-  },
-  aiSendBtnText: {
-    color: '#07090D',
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  aiAnswerBox: {
-    backgroundColor: '#10141D',
-    borderRadius: 10,
-    padding: 10,
-    marginTop: 8,
-    borderLeftWidth: 3,
-    borderLeftColor: '#D2FF00',
-  },
-  aiAnswerTitle: {
-    color: '#D2FF00',
-    fontSize: 10,
-    fontWeight: '900',
-    marginBottom: 2,
-  },
-  aiAnswerText: {
-    color: '#F8FAFC',
-    fontSize: 12,
-    lineHeight: 17,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  sectionTitle: {
-    color: '#F8FAFC',
-    fontSize: 14,
-    fontWeight: '800',
-    letterSpacing: 0.3,
-  },
-  sectionHint: {
-    color: '#64748B',
-    fontSize: 11,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  sundayToggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  sundayToggleLabel: {
-    color: '#94A3B8',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  weekPillsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
-  },
-  weekPill: {
-    backgroundColor: '#10141D',
-    borderWidth: 1,
-    borderColor: '#1E2534',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 14,
-    alignItems: 'center',
-  },
-  weekPillActive: {
-    backgroundColor: '#D2FF00',
-    borderColor: '#D2FF00',
-  },
-  weekPillNum: {
-    color: '#F8FAFC',
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  weekPillTextDark: {
-    color: '#07090D',
-  },
-  weekPillDate: {
-    color: '#64748B',
-    fontSize: 9,
-    fontWeight: '700',
-    marginTop: 2,
-  },
-  weekPillDateDark: {
-    color: '#07090D',
-  },
-  focusCard: {
-    backgroundColor: '#10141D',
-    borderWidth: 1,
-    borderColor: '#1E2534',
-    borderRadius: 14,
-    padding: 12,
-    marginBottom: 14,
-  },
-  focusDate: {
-    color: '#00F0FF',
-    fontSize: 11,
-    fontWeight: '800',
-    marginBottom: 4,
-  },
-  focusText: {
-    color: '#F8FAFC',
-    fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 18,
-  },
-  workoutCard: {
-    backgroundColor: '#10141D',
-    borderWidth: 1,
-    borderColor: '#1E2534',
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 14,
-  },
-  workoutMetaRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  workoutBadgesLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  dayChip: {
-    backgroundColor: '#1E2534',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  dayChipOptional: {
-    backgroundColor: '#332711',
-    borderWidth: 1,
-    borderColor: '#FFB02066',
-  },
-  dayChipText: {
-    color: '#00F0FF',
-    fontSize: 10,
-    fontWeight: '900',
-  },
-  dayChipTextOptional: {
-    color: '#FFB020',
-  },
-  workoutDate: {
-    color: '#64748B',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  kmBadge: {
-    backgroundColor: '#D2FF0022',
-    borderWidth: 1,
-    borderColor: '#D2FF0055',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-  },
-  kmBadgeText: {
-    color: '#D2FF00',
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  workoutTitle: {
-    color: '#F8FAFC',
-    fontSize: 17,
-    fontWeight: '800',
-    marginBottom: 4,
-  },
-  workoutDesc: {
-    color: '#94A3B8',
-    fontSize: 12,
-    fontWeight: '500',
-    lineHeight: 16,
-    marginBottom: 12,
-  },
-  segmentsBox: {
-    backgroundColor: '#0A0D14',
-    borderRadius: 12,
-    padding: 10,
-    marginBottom: 14,
-    gap: 6,
-  },
-  segRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  segName: {
-    color: '#94A3B8',
-    fontSize: 12,
-    fontWeight: '600',
-    flex: 1,
-    marginRight: 8,
-  },
-  segTarget: {
-    color: '#D2FF00',
-    fontSize: 12,
-    fontWeight: '800',
-    fontVariant: ['tabular-nums'],
-  },
-  moreSegText: {
-    color: '#64748B',
-    fontSize: 10,
-    fontWeight: '600',
-    fontStyle: 'italic',
-    marginTop: 2,
-  },
-  ctaVoltBtn: {
-    backgroundColor: '#D2FF00',
-    paddingVertical: 13,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  ctaVoltBtnText: {
-    color: '#07090D',
-    fontSize: 13,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(7, 9, 13, 0.92)',
-    justifyContent: 'center',
-    padding: 16,
-  },
-  modalContent: {
-    backgroundColor: '#10141D',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#1E2534',
-    padding: 20,
-    maxHeight: '90%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  modalTitle: {
-    color: '#F8FAFC',
-    fontSize: 16,
-    fontWeight: '900',
-  },
-  modalCloseBtn: {
-    padding: 4,
-  },
-  modalCloseText: {
-    color: '#64748B',
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  modalDesc: {
-    color: '#94A3B8',
-    fontSize: 12,
-    lineHeight: 16,
-    marginBottom: 16,
-  },
-  formRow: {
-    marginBottom: 12,
-  },
-  formLabel: {
-    color: '#94A3B8',
-    fontSize: 12,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  formSubHint: {
-    color: '#64748B',
-    fontSize: 10,
-    lineHeight: 14,
-    marginTop: 4,
-  },
-  formInput: {
-    backgroundColor: '#07090D',
-    borderWidth: 1,
-    borderColor: '#1E2534',
-    borderRadius: 10,
-    color: '#F8FAFC',
-    fontSize: 14,
-    fontWeight: '700',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  saveProfileBtn: {
-    backgroundColor: '#00F0FF',
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginTop: 10,
-    marginBottom: 20,
-  },
-  saveProfileBtnText: {
-    color: '#07090D',
-    fontSize: 13,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
+  safeArea: { flex: 1, backgroundColor: '#08090C' },
+  container: { padding: 16, paddingBottom: 40 },
+  posterBento: { flexDirection: 'row', gap: 10, marginBottom: 14 },
+  posterCard: { flex: 1.618, flexDirection: 'row', backgroundColor: '#111218', borderWidth: 1, borderColor: 'rgba(75,46,255,0.6)', borderRadius: 2, minHeight: 180, overflow: 'hidden' },
+  posterRibbonLime: { width: 28, backgroundColor: '#C8FF00', alignItems: 'center', justifyContent: 'center', paddingVertical: 8, gap: 16 },
+  posterRibbonText: { color: '#08090C', fontSize: 9, fontWeight: '900', letterSpacing: 2, transform: [{ rotate: '90deg' }] },
+  posterRibbonPurple: { width: 18, backgroundColor: '#4B2EFF', alignItems: 'center', justifyContent: 'center' },
+  posterRibbonPurpleText: { color: '#FFFFFF', fontSize: 7, fontWeight: '900', letterSpacing: 1.5, transform: [{ rotate: '90deg' }] },
+  posterCardMain: { flex: 1, padding: 12, justifyContent: 'space-between' },
+  posterCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  posterGoalBadge: { backgroundColor: '#4B2EFF', paddingHorizontal: 8, paddingVertical: 3 },
+  posterGoalBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+  posterChevs: { color: '#C8FF00', fontSize: 14, fontWeight: '900' },
+  posterTitleLayer: { marginTop: 8 },
+  posterBigTitle: { color: '#C8FF00', fontSize: 36, fontWeight: '900', letterSpacing: -1, lineHeight: 36, textTransform: 'uppercase', fontStyle: 'italic' },
+  posterSubRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 6 },
+  posterDist: { color: '#F8FAFC', fontSize: 20, fontWeight: '900', fontStyle: 'italic' },
+  posterPace: { color: '#9D85FF', fontSize: 16, fontWeight: '900', fontVariant: ['tabular-nums'] },
+  posterLimeCard: { flex: 1, backgroundColor: '#C8FF00', borderRadius: 2, padding: 12, justifyContent: 'space-between', alignItems: 'center', minHeight: 180 },
+  posterLimeTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' },
+  posterLimeTopLabel: { color: '#08090C', fontSize: 11, fontWeight: '900', letterSpacing: 1 },
+  liveChip: { backgroundColor: '#08090C', paddingHorizontal: 6, paddingVertical: 2 },
+  liveChipText: { color: '#C8FF00', fontSize: 9, fontWeight: '900' },
+  posterDaysCircle: { width: 80, height: 80, borderRadius: 40, borderWidth: 2, borderColor: '#08090C', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
+  posterDaysNum: { color: '#08090C', fontSize: 32, fontWeight: '900', fontVariant: ['tabular-nums'], lineHeight: 34 },
+  posterDaysLabel: { color: '#08090C', fontSize: 9, fontWeight: '900', letterSpacing: 2 },
+  posterLimeDate: { backgroundColor: '#4B2EFF', paddingVertical: 4, paddingHorizontal: 8, alignSelf: 'stretch', alignItems: 'center' },
+  posterLimeDateText: { color: '#FFFFFF', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+  goalTierGrid: { flexDirection: 'row', gap: 8, backgroundColor: '#111218', padding: 8, borderRadius: 14, marginBottom: 14 },
+  tierPill: { flex: 1, backgroundColor: '#08090C', borderRadius: 10, paddingVertical: 10, paddingHorizontal: 6, alignItems: 'center', borderWidth: 1, borderColor: '#252838' },
+  tierPillSelected: { backgroundColor: '#C8FF00', borderColor: '#C8FF00' },
+  tierPillTitle: { color: '#94A3B8', fontSize: 12, fontWeight: '800', marginBottom: 2 },
+  tierPillTitleSelected: { color: '#08090C' },
+  tierPillPace: { color: '#64748B', fontSize: 10, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  tierPillPaceSelected: { color: '#08090C' },
+  bentoRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
+  bentoTile: { flex: 1, backgroundColor: '#111218', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: '#252838', justifyContent: 'space-between' },
+  bentoTileActiveLime: { borderColor: 'rgba(200,255,0,0.4)', backgroundColor: '#0e1109' },
+  bentoTileActiveVolt: { borderColor: 'rgba(200,255,0,0.4)', backgroundColor: '#0e1109' },
+  tileHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  dotLime: { backgroundColor: '#C8FF00' },
+  dotVolt: { backgroundColor: '#C8FF00' },
+  dotCoral: { backgroundColor: '#FF3B5C' },
+  dotAmber: { backgroundColor: '#FFB020' },
+  dotMuted: { backgroundColor: '#475569' },
+  tileLabel: { color: '#94A3B8', fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
+  hrReadoutRow: { flexDirection: 'row', alignItems: 'baseline', gap: 4, marginVertical: 4 },
+  hrBigValue: { color: '#F8FAFC', fontSize: 32, fontWeight: '900', fontVariant: ['tabular-nums'] },
+  hrUnit: { color: '#64748B', fontSize: 12, fontWeight: '700' },
+  lthrStepperRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginVertical: 4 },
+  stepBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#252838', justifyContent: 'center', alignItems: 'center' },
+  stepBtnText: { color: '#F8FAFC', fontSize: 16, fontWeight: '700' },
+  lthrBigValue: { color: '#C8FF00', fontSize: 28, fontWeight: '900', fontVariant: ['tabular-nums'] },
+  tileSubText: { color: '#64748B', fontSize: 10, fontWeight: '600', marginBottom: 6 },
+  tileBtn: { paddingVertical: 8, borderRadius: 10, alignItems: 'center' },
+  tileBtnLime: { backgroundColor: '#C8FF00' },
+  tileBtnVolt: { backgroundColor: '#C8FF00' },
+  tileBtnGhost: { backgroundColor: '#252838' },
+  tileBtnText: { color: '#F8FAFC', fontSize: 12, fontWeight: '800' },
+  tileBtnTextDark: { color: '#08090C' },
+  simMiniRow: { flexDirection: 'row', gap: 6 },
+  simMiniBtn: { flex: 1, backgroundColor: '#252838', paddingVertical: 6, borderRadius: 8, alignItems: 'center' },
+  simMiniBtnActive: { backgroundColor: 'rgba(200,255,0,0.2)', borderWidth: 1, borderColor: '#C8FF00' },
+  simMiniText: { color: '#94A3B8', fontSize: 10, fontWeight: '700' },
+  simMiniDangerBtn: { backgroundColor: '#FF3B5C22', paddingVertical: 6, paddingHorizontal: 8, borderRadius: 8, borderWidth: 1, borderColor: '#FF3B5C66', alignItems: 'center' },
+  simMiniDangerText: { color: '#FF3B5C', fontSize: 10, fontWeight: '700' },
+  errorPill: { backgroundColor: '#FF3B5C22', borderColor: '#FF3B5C55', borderWidth: 1, padding: 10, borderRadius: 12, marginBottom: 14 },
+  errorPillText: { color: '#FF6B8B', fontSize: 12, fontWeight: '600', textAlign: 'center' },
+  adaptiveSection: { backgroundColor: '#111218', borderWidth: 1.5, borderColor: 'rgba(75,46,255,0.4)', borderRadius: 20, padding: 16, marginBottom: 20 },
+  adaptiveTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  adaptiveSectionTitle: { color: '#C8FF00', fontSize: 13, fontWeight: '900', letterSpacing: 0.5, flex: 1, marginRight: 8 },
+  aiBadge: { backgroundColor: 'rgba(75,46,255,0.3)', borderWidth: 1, borderColor: '#4B2EFF', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  aiBadgeText: { color: '#9D85FF', fontSize: 9, fontWeight: '900' },
+  adaptiveSectionSub: { color: '#94A3B8', fontSize: 11, lineHeight: 16, marginBottom: 12 },
+  contextSummaryChip: { backgroundColor: '#08090C', borderWidth: 1, borderColor: '#252838', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, marginBottom: 12 },
+  contextSummaryText: { color: '#C8FF00', fontSize: 11, fontWeight: '700' },
+  feelingPromptText: { color: '#F8FAFC', fontSize: 12, fontWeight: '800', marginBottom: 8 },
+  feelingPillsRow: { flexDirection: 'row', gap: 6, marginBottom: 14 },
+  feelingPill: { flex: 1, backgroundColor: '#08090C', borderWidth: 1, borderColor: '#252838', paddingVertical: 8, borderRadius: 10, alignItems: 'center' },
+  feelingPillActive: { backgroundColor: '#C8FF00', borderColor: '#C8FF00' },
+  feelingPillText: { color: '#94A3B8', fontSize: 10, fontWeight: '800' },
+  textDark: { color: '#08090C' },
+  adaptiveCard: { backgroundColor: '#08090C', borderWidth: 1, borderColor: '#252838', borderRadius: 16, padding: 14, marginBottom: 14 },
+  adaptiveCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  recTypeBadge: { backgroundColor: 'rgba(200,255,0,0.13)', borderWidth: 1, borderColor: '#C8FF00', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  recTypeBadgeText: { color: '#C8FF00', fontSize: 10, fontWeight: '900' },
+  adaptiveDistText: { color: '#9D85FF', fontSize: 16, fontWeight: '900' },
+  adaptiveWorkoutTitle: { color: '#F8FAFC', fontSize: 16, fontWeight: '900', marginBottom: 6 },
+  adaptiveReasonText: { color: '#94A3B8', fontSize: 12, lineHeight: 17, marginBottom: 10 },
+  aiQuoteBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#111218', borderRadius: 8, padding: 8, gap: 8, marginBottom: 12, borderLeftWidth: 3, borderLeftColor: '#4B2EFF' },
+  aiQuoteIcon: { fontSize: 14 },
+  aiQuoteText: { color: '#F8FAFC', fontSize: 11, fontStyle: 'italic', flex: 1 },
+  ctaLimeBtn: { backgroundColor: '#C8FF00', paddingVertical: 13, borderRadius: 12, alignItems: 'center', marginTop: 4 },
+  ctaLimeBtnText: { color: '#08090C', fontSize: 13, fontWeight: '900', letterSpacing: 0.5 },
+  ctaPurpleBtn: { backgroundColor: '#4B2EFF' },
+  ctaPurpleBtnText: { color: '#FFFFFF' },
+  ctaAdaptiveBtn: { backgroundColor: '#C8FF00', paddingVertical: 13, borderRadius: 12, alignItems: 'center', marginTop: 4 },
+  ctaAdaptiveBtnText: { color: '#08090C', fontSize: 13, fontWeight: '900', letterSpacing: 0.5 },
+  ctaVoltBtn: { backgroundColor: '#C8FF00', paddingVertical: 13, borderRadius: 12, alignItems: 'center' },
+  ctaVoltBtnText: { color: '#08090C', fontSize: 13, fontWeight: '900', letterSpacing: 0.5 },
+  aiQaCard: { backgroundColor: '#08090C', borderRadius: 14, padding: 12, borderWidth: 1, borderColor: '#252838' },
+  aiQaHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  aiQaTitle: { color: '#C8FF00', fontSize: 11, fontWeight: '900', letterSpacing: 0.5 },
+  aiQaProviderTag: { color: '#64748B', fontSize: 9, fontWeight: '800' },
+  aiQaSub: { color: '#94A3B8', fontSize: 11, lineHeight: 15, marginBottom: 8 },
+  aiQuickQRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 },
+  quickQChip: { backgroundColor: '#181A24', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
+  quickQText: { color: '#CBD5E1', fontSize: 11 },
+  aiInputRow: { flexDirection: 'row', gap: 6 },
+  aiTextInput: { flex: 1, backgroundColor: '#111218', borderWidth: 1, borderColor: '#252838', borderRadius: 10, color: '#F8FAFC', fontSize: 12, paddingHorizontal: 10, paddingVertical: 7 },
+  aiSendBtn: { backgroundColor: '#C8FF00', paddingHorizontal: 14, justifyContent: 'center', alignItems: 'center', borderRadius: 10 },
+  aiSendBtnText: { color: '#08090C', fontSize: 12, fontWeight: '900' },
+  aiAnswerBox: { backgroundColor: '#111218', borderRadius: 10, padding: 10, marginTop: 8, borderLeftWidth: 3, borderLeftColor: '#C8FF00' },
+  aiAnswerTitle: { color: '#C8FF00', fontSize: 10, fontWeight: '900', marginBottom: 2 },
+  aiAnswerText: { color: '#F8FAFC', fontSize: 12, lineHeight: 17 },
+  sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  sectionTitle: { color: '#F8FAFC', fontSize: 14, fontWeight: '800', letterSpacing: 0.3 },
+  sectionHint: { color: '#64748B', fontSize: 11, fontWeight: '600', marginTop: 2 },
+  sundayToggleRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  sundayToggleLabel: { color: '#94A3B8', fontSize: 11, fontWeight: '600' },
+  weekPillsRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  weekPill: { backgroundColor: '#111218', borderWidth: 1, borderColor: '#252838', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 14, alignItems: 'center' },
+  weekPillActive: { backgroundColor: '#C8FF00', borderColor: '#C8FF00' },
+  weekPillNum: { color: '#F8FAFC', fontSize: 13, fontWeight: '800' },
+  weekPillTextDark: { color: '#08090C' },
+  weekPillDate: { color: '#64748B', fontSize: 9, fontWeight: '700', marginTop: 2 },
+  weekPillDateDark: { color: '#08090C' },
+  focusCard: { backgroundColor: '#111218', borderWidth: 1, borderColor: '#252838', borderRadius: 14, padding: 12, marginBottom: 14 },
+  focusDate: { color: '#9D85FF', fontSize: 11, fontWeight: '800', marginBottom: 4 },
+  focusText: { color: '#F8FAFC', fontSize: 13, fontWeight: '600', lineHeight: 18 },
+  workoutCard: { backgroundColor: '#111218', borderWidth: 1, borderColor: '#252838', borderRadius: 18, padding: 16, marginBottom: 14 },
+  workoutCardCheckpoint: { borderColor: 'rgba(75,46,255,0.6)', backgroundColor: '#0e0d1a' },
+  workoutMetaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  workoutBadgesLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  dayChip: { backgroundColor: '#252838', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  dayChipOptional: { backgroundColor: '#332711', borderWidth: 1, borderColor: '#FFB02066' },
+  dayChipCheckpoint: { backgroundColor: 'rgba(75,46,255,0.3)', borderWidth: 1, borderColor: '#4B2EFF' },
+  dayChipText: { color: '#C8FF00', fontSize: 10, fontWeight: '900' },
+  dayChipTextOptional: { color: '#FFB020' },
+  dayChipTextCheckpoint: { color: '#9D85FF' },
+  workoutDate: { color: '#64748B', fontSize: 11, fontWeight: '600' },
+  kmBadge: { backgroundColor: 'rgba(200,255,0,0.13)', borderWidth: 1, borderColor: 'rgba(200,255,0,0.33)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
+  kmBadgePurple: { backgroundColor: 'rgba(75,46,255,0.2)', borderColor: '#4B2EFF' },
+  kmBadgeText: { color: '#C8FF00', fontSize: 12, fontWeight: '900' },
+  kmBadgeTextPurple: { color: '#9D85FF' },
+  workoutTitle: { color: '#F8FAFC', fontSize: 17, fontWeight: '800', marginBottom: 4 },
+  workoutTitleCheckpoint: { color: '#9D85FF' },
+  workoutDesc: { color: '#94A3B8', fontSize: 12, fontWeight: '500', lineHeight: 16, marginBottom: 12 },
+  segmentsBox: { backgroundColor: '#08090C', borderRadius: 12, padding: 10, marginBottom: 14, gap: 6 },
+  segRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  segName: { color: '#94A3B8', fontSize: 12, fontWeight: '600', flex: 1, marginRight: 8 },
+  segTarget: { color: '#C8FF00', fontSize: 12, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  moreSegText: { color: '#64748B', fontSize: 10, fontWeight: '600', fontStyle: 'italic', marginTop: 2 },
+  editProfileBtnFull: { backgroundColor: '#14151D', borderWidth: 1, borderColor: '#252838', paddingVertical: 14, borderRadius: 14, alignItems: 'center', marginTop: 4 },
+  editProfileBtnFullText: { color: '#9D85FF', fontSize: 12, fontWeight: '800' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(8,9,12,0.92)', justifyContent: 'center', padding: 16 },
+  modalContent: { backgroundColor: '#111218', borderRadius: 20, borderWidth: 1, borderColor: '#252838', padding: 20, maxHeight: '90%' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  modalTitle: { color: '#F8FAFC', fontSize: 16, fontWeight: '900' },
+  modalCloseBtn: { padding: 4 },
+  modalCloseText: { color: '#64748B', fontSize: 18, fontWeight: '800' },
+  modalDesc: { color: '#94A3B8', fontSize: 12, lineHeight: 16, marginBottom: 16 },
+  formRow: { marginBottom: 12 },
+  formLabel: { color: '#94A3B8', fontSize: 12, fontWeight: '700', marginBottom: 4 },
+  formSubHint: { color: '#64748B', fontSize: 10, lineHeight: 14, marginTop: 4 },
+  formInput: { backgroundColor: '#08090C', borderWidth: 1, borderColor: '#252838', borderRadius: 10, color: '#F8FAFC', fontSize: 14, fontWeight: '700', paddingHorizontal: 12, paddingVertical: 8 },
+  saveProfileBtn: { backgroundColor: '#C8FF00', paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 10, marginBottom: 20 },
+  saveProfileBtnText: { color: '#08090C', fontSize: 13, fontWeight: '900', letterSpacing: 0.5 },
+  brandRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  brandTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  brandSub60: { color: '#F8FAFC', fontSize: 26, fontWeight: '900', letterSpacing: -0.5 },
+  voltPill: { backgroundColor: '#C8FF00', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  voltPillText: { color: '#08090C', fontSize: 10, fontWeight: '900', letterSpacing: 0.6 },
+  brandSubtitle: { color: '#64748B', fontSize: 11, fontWeight: '600', marginTop: 2 },
+  editProfileBtn: { backgroundColor: '#111218', borderWidth: 1, borderColor: '#252838', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 },
+  editProfileBtnText: { color: '#9D85FF', fontSize: 11, fontWeight: '800' },
+  goalSelectionCard: { backgroundColor: '#111218', borderWidth: 1, borderColor: '#252838', borderRadius: 16, padding: 14, marginBottom: 16 },
+  goalCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  goalCardTitle: { color: '#94A3B8', fontSize: 11, fontWeight: '800', letterSpacing: 0.6 },
+  activeGoalBadge: { backgroundColor: 'rgba(200,255,0,0.13)', borderColor: '#C8FF00', borderWidth: 1, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  activeGoalBadgeText: { color: '#C8FF00', fontSize: 10, fontWeight: '900' },
+  goalTiersRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  tierBtn: { flex: 1, backgroundColor: '#08090C', borderWidth: 1, borderColor: '#252838', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 6, alignItems: 'center' },
+  tierBtnSelected: { borderColor: '#C8FF00', backgroundColor: 'rgba(75,46,255,0.15)' },
+  tierBtnTitle: { color: '#94A3B8', fontSize: 12, fontWeight: '800', marginBottom: 3 },
+  tierBtnTitleSelected: { color: '#C8FF00' },
+  tierBtnPace: { color: '#64748B', fontSize: 10, fontWeight: '700' },
+  tierBtnPaceSelected: { color: '#F8FAFC' },
+  riegelNoteBox: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#08090C', borderRadius: 10, padding: 10, gap: 8, borderWidth: 1, borderColor: 'rgba(200,255,0,0.13)' },
+  riegelNoteIcon: { fontSize: 14 },
+  riegelNoteText: { flex: 1, color: '#94A3B8', fontSize: 11, lineHeight: 16, fontWeight: '500' },
+  adaptiveHeader: { marginBottom: 10 },
 });
