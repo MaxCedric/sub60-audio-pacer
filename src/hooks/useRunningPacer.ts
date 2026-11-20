@@ -273,6 +273,18 @@ export function useRunningPacer(
     [athleteProfile, currentGoalId]
   );
 
+  const safeDefaultSegment: WorkoutSegment = {
+    id: 'seg-default',
+    name: 'Easy Chạy Nhẹ Z2',
+    type: 'main',
+    paceType: 'easy',
+    distanceMeters: 3000,
+    targetPaceMinSec: 360,
+    targetPaceMaxSec: 420,
+    maxHrBpm: 160,
+    voiceIntro: 'Chạy nhẹ nhàng duy trì Zone 2',
+  };
+
   const currentSegment: WorkoutSegment = isWalkingRecovery
     ? {
         id: 'walk-recovery',
@@ -295,7 +307,9 @@ export function useRunningPacer(
         maxHrBpm: 178,
         voiceIntro: 'Tiếp tục chạy tự do theo cảm giác cơ thể',
       }
-    : workout.segments[currentSegmentIndex] || workout.segments[workout.segments.length - 1];
+    : (workout?.segments && workout.segments.length > 0)
+    ? (workout.segments[currentSegmentIndex] || workout.segments[workout.segments.length - 1] || safeDefaultSegment)
+    : safeDefaultSegment;
 
   const getActualElapsedSeconds = useCallback((nowMs: number): number => {
     if (!runStartTimeMsRef.current) return 0;

@@ -9,7 +9,9 @@ import {
   TextInput,
   Animated,
   Pressable,
+  Dimensions,
 } from 'react-native';
+import Svg, { Line } from 'react-native-svg';
 import { useKeepAwake } from 'expo-keep-awake';
 import * as Haptics from 'expo-haptics';
 import {
@@ -23,10 +25,13 @@ import { audioCoach } from '../services/audioCoach';
 import { GOAL_TIERS } from '../logic/athlete';
 import { storageService } from '../services/storage';
 
-interface RunHudScreenProps {
+export interface RunHudScreenProps {
   workout: WorkoutPlan;
   heartRate: number | null;
   bleStatus: BleConnectionStatus;
+  deviceName?: string | null;
+  onScanBle?: () => void;
+  onDisconnectBle?: () => void;
   onToggleSimBle: (highHr?: boolean) => void;
   onBackToHome: () => void;
 }
@@ -185,6 +190,9 @@ export const RunHudScreen: React.FC<RunHudScreenProps> = ({
   workout,
   heartRate,
   bleStatus,
+  deviceName,
+  onScanBle,
+  onDisconnectBle,
   onToggleSimBle,
   onBackToHome,
 }) => {
@@ -380,6 +388,16 @@ export const RunHudScreen: React.FC<RunHudScreenProps> = ({
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <Svg width={Dimensions.get('window').width} height={1800}>
+          {Array.from({ length: Math.ceil(Dimensions.get('window').width / 28) }).map((_, i) => (
+            <Line key={`v-${i}`} x1={i * 28} y1={0} x2={i * 28} y2={1800} stroke="rgba(75,46,255,0.07)" strokeWidth={1} />
+          ))}
+          {Array.from({ length: 65 }).map((_, i) => (
+            <Line key={`h-${i}`} x1={0} y1={i * 28} x2={Dimensions.get('window').width} y2={i * 28} stroke="rgba(75,46,255,0.07)" strokeWidth={1} />
+          ))}
+        </Svg>
+      </View>
       <ScrollView
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
@@ -402,13 +420,32 @@ export const RunHudScreen: React.FC<RunHudScreenProps> = ({
           {/* Right: BLE + SIM */}
           <View style={styles.band1Right}>
             <TouchableOpacity
-              style={styles.bleBtn}
-              onPress={() => onToggleSimBle()}
+              style={[
+                styles.bleBtn,
+                bleStatus === 'CONNECTED' && { borderColor: '#C8FF00', backgroundColor: 'rgba(200,255,0,0.1)' },
+                bleStatus === 'SCANNING' && { borderColor: '#FFB020' },
+              ]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                if (bleStatus === 'CONNECTED') {
+                  onDisconnectBle?.();
+                } else {
+                  onScanBle?.();
+                }
+              }}
             >
               <BluetoothIcon />
-              <Text style={styles.bleBtnText}>
+              <Text
+                style={[
+                  styles.bleBtnText,
+                  bleStatus === 'CONNECTED' && { color: '#C8FF00' },
+                  bleStatus === 'SCANNING' && { color: '#FFB020' },
+                ]}
+              >
                 {bleStatus === 'CONNECTED'
-                  ? 'BLE ●'
+                  ? 'LIVE'
+                  : bleStatus === 'SCANNING'
+                  ? 'QUÉT...'
                   : bleStatus === 'SIMULATED'
                   ? 'SIM'
                   : 'BLE'}
@@ -1120,7 +1157,8 @@ const styles = StyleSheet.create({
   paceCard: {
     flex: 1.618,
     backgroundColor: '#F8FAFC',
-    borderRadius: 2,
+    borderRadius: 4,
+    borderTopRightRadius: 20,
     borderBottomWidth: 4,
     borderBottomColor: '#C8FF00',
     padding: 14,
@@ -1135,7 +1173,8 @@ const styles = StyleSheet.create({
   bpmCard: {
     flex: 1,
     backgroundColor: '#F8FAFC',
-    borderRadius: 2,
+    borderRadius: 4,
+    borderTopRightRadius: 20,
     borderBottomWidth: 4,
     borderBottomColor: '#4B2EFF',
     padding: 14,

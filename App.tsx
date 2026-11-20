@@ -1,13 +1,15 @@
-import React, { useState, Component } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image } from 'react-native';
+import React, { useState, useEffect, Component } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Polygon, Rect, Line, Path } from 'react-native-svg';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { RunHudScreen } from './src/screens/RunHudScreen';
 import { StatsScreen } from './src/screens/StatsScreen';
 import { useBleHeartRate } from './src/hooks/useBleHeartRate';
 import { WorkoutPlan } from './src/hooks/useRunningPacer';
+import { buildSchedule } from './src/logic/schedule';
 
 // ─── Global Error Boundary ────────────────────────────────────────────────────
 interface EBState { hasError: boolean; error: string }
@@ -42,13 +44,16 @@ class AppErrorBoundary extends Component<{ children: React.ReactNode }, EBState>
 
 export default function App() {
   return (
-    <AppErrorBoundary>
-      <AppInner />
-    </AppErrorBoundary>
+    <SafeAreaProvider>
+      <AppErrorBoundary>
+        <AppInner />
+      </AppErrorBoundary>
+    </SafeAreaProvider>
   );
 }
 
 function AppInner() {
+  const insets = useSafeAreaInsets();
   type ActiveBottomTab = 'PLAN' | 'HUD' | 'STATS';
   const [activeWorkout, setActiveWorkout] = useState<WorkoutPlan | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveBottomTab>('PLAN');
@@ -64,25 +69,19 @@ function AppInner() {
     toggleSimulationMode,
   } = useBleHeartRate();
 
-  // If a workout is active (started from HomeScreen), go full-screen RunHud
-  if (activeWorkout) {
-    return (
-      <RunHudScreen
-        workout={activeWorkout}
-        heartRate={heartRate}
-        bleStatus={bleStatus}
-        onToggleSimBle={toggleSimulationMode}
-        onBackToHome={() => setActiveWorkout(null)}
-      />
-    );
-  }
+  // Auto scan & connect on app startup
+  useEffect(() => {
+    startScanAndConnect();
+  }, [startScanAndConnect]);
+
+  const defaultWorkout = buildSchedule('sub60')[0].workouts[0];
 
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
 
       {/* ── Contest Broadcast Top Header ── */}
-      <View style={styles.headerBar}>
+      <View style={[styles.headerBar, { paddingTop: Math.max(insets.top, Platform.OS === 'ios' ? 44 : 20) }]}>
         {/* Purple top strip */}
         <View style={styles.headerTopStrip}>
           {/* Checker-mini left */}
@@ -145,13 +144,19 @@ function AppInner() {
             onScanBle={startScanAndConnect}
             onDisconnectBle={disconnect}
             onToggleSimBle={toggleSimulationMode}
-            onSelectWorkout={(workout) => setActiveWorkout(workout)}
+            onSelectWorkout={(workout) => {
+              setActiveWorkout(workout);
+              setActiveTab('HUD');
+            }}
           />
         ) : activeTab === 'HUD' ? (
           <RunHudScreen
-            workout={activeWorkout || { id: 'open', title: 'Chạy Tự Do', totalDistanceKm: 0, segments: [] } as any}
+            workout={activeWorkout || defaultWorkout}
             heartRate={heartRate}
             bleStatus={bleStatus}
+            deviceName={deviceName}
+            onScanBle={startScanAndConnect}
+            onDisconnectBle={disconnect}
             onToggleSimBle={toggleSimulationMode}
             onBackToHome={() => setActiveTab('PLAN')}
           />
@@ -161,7 +166,7 @@ function AppInner() {
       </View>
 
       {/* ── Clean Contest Bottom Navigation ── */}
-      <View style={styles.bottomBar}>
+      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
         {/* Giáo Án tab */}
         <TouchableOpacity
           style={[styles.tabBtn, activeTab === 'PLAN' && styles.tabBtnActiveLime]}

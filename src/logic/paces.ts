@@ -55,9 +55,22 @@ export function resolvePaceRange(
   profile: Pick<AthleteProfile, 'lactateThresholdPaceSecPerKm' | 'fastest3kSec'>,
   goal?: GoalTier
 ): ResolvedPaceRange {
-  const ltPace = profile.lactateThresholdPaceSecPerKm || 451;
-  const p3k = calculatePace3k(profile.fastest3kSec || 1268);
+  const ltPace = profile?.lactateThresholdPaceSecPerKm || 451;
+  const p3k = calculatePace3k(profile?.fastest3kSec || 1268);
   const activeGoal = goal || GOAL_TIERS.sub60;
+
+  if (!segment) {
+    const minSec = ltPace + 45;
+    const maxSec = ltPace + 90;
+    return {
+      paceType: 'easy',
+      minSec,
+      maxSec,
+      hasPaceAlert: true,
+      displayText: `${formatPaceMinutesSeconds(minSec)}–${formatPaceMinutesSeconds(maxSec)}`,
+      voiceText: `Pace ${formatPaceVoiceWords(minSec)} đến ${formatPaceVoiceWords(maxSec)}`,
+    };
+  }
 
   // Xác định paceType nếu segment chưa gán
   let paceType: PaceType = segment.paceType || 'easy';

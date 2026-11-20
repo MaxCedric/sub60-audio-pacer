@@ -191,7 +191,8 @@ export function useBleHeartRate() {
       const manager = getBleManager();
       clearTimersAndSubscriptions();
 
-      const connected = await device.connect({ autoConnect: true, requestMTU: 64 });
+      const connectOptions = Platform.OS === 'android' ? { autoConnect: true, requestMTU: 64 } : { autoConnect: true };
+      const connected = await device.connect(connectOptions);
       const discovered = await connected.discoverAllServicesAndCharacteristics();
       connectedDeviceRef.current = discovered;
       lastDeviceIdRef.current = discovered.id;
@@ -217,10 +218,32 @@ export function useBleHeartRate() {
         }
       );
 
-      // Đăng ký nhận Notification từ Characteristic 0x2A37
+      // Tìm chính xác service 0x180D và characteristic 0x2A37 (hỗ trợ cả 16-bit và 128-bit UUID)
+      let targetServiceUuid = HEART_RATE_SERVICE_UUID;
+      let targetCharUuid = HEART_RATE_CHARACTERISTIC_UUID;
+      try {
+        const services = await discovered.services();
+        const hrService = services.find(
+          (s) => s.uuid.toLowerCase().includes('180d') || s.uuid.toLowerCase() === HEART_RATE_SERVICE_UUID
+        );
+        if (hrService) {
+          targetServiceUuid = hrService.uuid;
+          const chars = await hrService.characteristics();
+          const hrChar = chars.find(
+            (c) => c.uuid.toLowerCase().includes('2a37') || c.uuid.toLowerCase() === HEART_RATE_CHARACTERISTIC_UUID
+          );
+          if (hrChar) {
+            targetCharUuid = hrChar.uuid;
+          }
+        }
+      } catch (discErr) {
+        console.warn('[BLE] Dynamic service discovery fallback:', discErr);
+      }
+
+      // Đăng ký nhận Notification từ Characteristic đo nhịp tim
       monitorSubRef.current = discovered.monitorCharacteristicForService(
-        HEART_RATE_SERVICE_UUID,
-        HEART_RATE_CHARACTERISTIC_UUID,
+        targetServiceUuid,
+        targetCharUuid,
         (error, characteristic) => {
           if (error) {
             return;
@@ -290,15 +313,23 @@ export function useBleHeartRate() {
 
       setStatus('SCANNING');
 
-      // Kiểm tra xem đồng hồ đã được iOS kết nối sẵn trong hệ thống với Service 0x180D chưa
-      const alreadyConnected = await manager.connectedDevices([HEART_RATE_SERVICE_UUID]);
-      if (alreadyConnected.length > 0) {
-        setStatus('CONNECTING');
-        await subscribeToHeartRate(alreadyConnected[0]);
-        return;
+      // Kiểm tra xem đồng hồ đã được iOS kết nối sẵn trong hệ thống chưa
+      try {
+        const alreadyConnected = await manager.connectedDevices([
+          HEART_RATE_SERVICE_UUID,
+          '180d',
+          '180D',
+        ]);
+        if (alreadyConnected.length > 0) {
+          setStatus('CONNECTING');
+          await subscribeToHeartRate(alreadyConnected[0]);
+          return;
+        }
+      } catch (checkErr) {
+        // Tiếp tục quét bình thường
       }
 
-      // Quét thiết bị BLE phát quảng bá Service 0x180D hoặc có tên HUAWEI WATCH FIT
+      // Quét thiết bị BLE phát quảng bá Service 0x180D hoặc có tên HUAWEI WATCH / FIT
       manager.startDeviceScan(
         null,
         { allowDuplicates: false },
@@ -318,7 +349,12 @@ export function useBleHeartRate() {
             (u) => u.includes(SHORT_SERVICE_UUID) || u === HEART_RATE_SERVICE_UUID
           );
           const isHuaweiWatch =
-            name.includes('HUAWEI') || name.includes('WATCH FIT') || name.includes('FIT 4');
+            name.includes('HUAWEI') ||
+            name.includes('WATCH') ||
+            name.includes('FIT') ||
+            name.includes('HR-') ||
+            name.includes('HONOR') ||
+            name.includes('BA8');
 
           if (advertisesHrService || isHuaweiWatch) {
             manager.stopDeviceScan();
@@ -328,7 +364,7 @@ export function useBleHeartRate() {
             } catch (connectErr: any) {
               setStatus('ERROR');
               setErrorMessage(
-                connectErr?.message || 'Không thể kết nối với HUAWEI WATCH FIT 4. Hãy kiểm tra tính năng Phát sóng nhịp tim.'
+                connectErr?.message || 'Không thể kết nối với đồng hồ. Nếu đang mở LightBlue, hãy Disconnect LightBlue trước.'
               );
             }
           }
